@@ -22,7 +22,10 @@ logger = logging.getLogger("gotot")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting GoTot API...")
-    await init_db()
+    try:
+        await init_db()
+    except Exception as e:
+        logger.warning(f"Database init failed (will retry on demand): {e}")
     yield
     logger.info("Shutting down GoTot API...")
 
