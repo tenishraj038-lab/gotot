@@ -1,0 +1,12 @@
+#gotot-download-btn {
+  animation: gotot-fade-in 0.3s ease-out;
+}
+
+@keyframes gotot-fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+#gotot-download-btn:hover div {
+  transform: scale(1.05);
+}

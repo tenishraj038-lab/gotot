@@ -1,0 +1,8 @@
+# GoTot Robots
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /admin/
+
+Sitemap: https://gotot.app/sitemap.xml
