@@ -3,13 +3,17 @@ import os
 import subprocess
 import tempfile
 from typing import Optional
+
 import yt_dlp
-from app.utils.helpers import detect_platform, sanitize_filename
+
+from app.providers import provider_registry
+from app.utils.helpers import sanitize_filename
 
 
 class VideoInfo:
     def __init__(self, title: str, platform: str, duration: int, thumbnail: str,
-                 formats: list, url: str, is_playlist: bool = False, playlist_count: int = 0):
+                 formats: list, url: str, is_playlist: bool = False, playlist_count: int = 0,
+                 metadata: Optional[dict] = None):
         self.title = title
         self.platform = platform
         self.duration = duration
@@ -18,6 +22,7 @@ class VideoInfo:
         self.url = url
         self.is_playlist = is_playlist
         self.playlist_count = playlist_count
+        self.metadata = metadata or {}
 
 
 class DownloadResult:
@@ -36,6 +41,26 @@ def _format_size(size_bytes: int) -> str:
             return f"{size_bytes:.1f} {unit}"
         size_bytes /= 1024
     return f"{size_bytes:.1f} TB"
+
+
+def _deduplicate_formats(formats: list) -> list:
+    seen = set()
+    result = []
+    for f in formats:
+        vcodec = f.get("vcodec", "")
+        acodec = f.get("acodec", "")
+        has_video = vcodec != "none"
+        has_audio = acodec != "none"
+        if not has_video and not has_audio:
+            continue
+        height = f.get("height")
+        ext = f.get("ext", "mp4")
+        key = f"{ext}_{height}_{f.get('format_id')}"
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(f)
+    return result
 
 
 def _get_quality_label(f: dict) -> str:
@@ -63,95 +88,92 @@ def _get_quality_label(f: dict) -> str:
     return label
 
 
+def _format_formats(info: dict, platform: str) -> list:
+    formats = []
+    for f in info.get("formats", []):
+        vcodec = f.get("vcodec", "")
+        acodec = f.get("acodec", "")
+        has_video = vcodec != "none"
+        has_audio = acodec != "none"
+        if not has_video and not has_audio:
+            continue
+
+        height = f.get("height")
+        quality_label = _get_quality_label(f)
+        filesize = f.get("filesize") or f.get("filesize_approx", 0)
+
+        formats.append({
+            "format_id": f.get("format_id"),
+            "ext": ext if (ext := f.get("ext", "mp4")) else "mp4",
+            "resolution": f.get("resolution") or f.get("format_note", ""),
+            "height": height,
+            "filesize": filesize,
+            "filesize_approx": filesize,
+            "filesize_human": _format_size(filesize),
+            "vcodec": vcodec,
+            "acodec": acodec,
+            "fps": f.get("fps"),
+            "abr": f.get("abr", 0),
+            "tbr": f.get("tbr", 0),
+            "quality_label": quality_label,
+            "has_video": has_video,
+            "has_audio": has_audio,
+            "type": "video" if has_video and has_audio else ("video_only" if has_video else "audio"),
+        })
+
+    formats.sort(key=lambda x: (x.get("height") or 0, x.get("abr") or 0), reverse=True)
+    return _deduplicate_formats(formats)
+
+
 async def extract_video_info(url: str) -> Optional[VideoInfo]:
-    platform = detect_platform(url)
-    if not platform:
+    provider = provider_registry.detect(url)
+    if not provider:
         return None
 
+    platform = provider.name
     loop = asyncio.get_running_loop()
 
     def _extract():
-        ydl_opts = {
-            "quiet": True,
-            "no_warnings": True,
-            "extract_flat": False,
-        }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            try:
-                info = ydl.extract_info(url, download=False)
-                is_playlist = info.get("_type") == "playlist" or "entries" in info
-                playlist_count = 0
-                if is_playlist and "entries" in info:
-                    playlist_count = len(info["entries"])
-                    title = info.get("title", "playlist")
-                    thumbnail = info.get("thumbnail", "")
-                    duration = 0
-                    formats = []
-                    return VideoInfo(
-                        title=title, platform=platform, duration=duration,
-                        thumbnail=thumbnail, formats=formats, url=url,
-                        is_playlist=True, playlist_count=playlist_count,
-                    )
-
-                formats = []
-                seen = set()
-                for f in info.get("formats", []):
-                    vcodec = f.get("vcodec", "")
-                    acodec = f.get("acodec", "")
-                    has_video = vcodec != "none"
-                    has_audio = acodec != "none"
-
-                    if not has_video and not has_audio:
-                        continue
-
-                    height = f.get("height")
-                    ext = f.get("ext", "mp4")
-                    key = f"{ext}_{height}_{f.get('format_id')}"
-                    if key in seen:
-                        continue
-                    seen.add(key)
-
-                    quality_label = _get_quality_label(f)
-                    filesize = f.get("filesize") or f.get("filesize_approx", 0)
-
-                    formats.append({
-                        "format_id": f.get("format_id"),
-                        "ext": ext,
-                        "resolution": f.get("resolution") or f.get("format_note", ""),
-                        "height": height,
-                        "filesize": filesize,
-                        "filesize_approx": filesize,
-                        "filesize_human": _format_size(filesize),
-                        "vcodec": vcodec,
-                        "acodec": acodec,
-                        "fps": f.get("fps"),
-                        "abr": f.get("abr", 0),
-                        "tbr": f.get("tbr", 0),
-                        "quality_label": quality_label,
-                        "has_video": has_video,
-                        "has_audio": has_audio,
-                        "type": "video" if has_video and has_audio else ("video_only" if has_video else "audio"),
-                    })
-
-                formats.sort(key=lambda x: (x.get("height") or 0, x.get("abr") or 0), reverse=True)
-
-                return VideoInfo(
-                    title=info.get("title", "video"),
-                    platform=platform,
-                    duration=info.get("duration", 0),
-                    thumbnail=info.get("thumbnail", ""),
-                    formats=formats,
-                    url=url,
-                )
-            except Exception as e:
+        try:
+            raw_info = provider.extract_info(url)
+            if not raw_info:
                 return None
+
+            is_playlist = raw_info.get("_type") == "playlist" or "entries" in raw_info
+            if is_playlist and "entries" in raw_info:
+                playlist_count = len(raw_info["entries"])
+                return VideoInfo(
+                    title=raw_info.get("title", "playlist"),
+                    platform=platform,
+                    duration=0,
+                    thumbnail=raw_info.get("thumbnail", ""),
+                    formats=[],
+                    url=url,
+                    is_playlist=True,
+                    playlist_count=playlist_count,
+                    metadata=provider.get_metadata(raw_info),
+                )
+
+            formats = _format_formats(raw_info, platform)
+
+            return VideoInfo(
+                title=raw_info.get("title", "video"),
+                platform=platform,
+                duration=raw_info.get("duration", 0),
+                thumbnail=raw_info.get("thumbnail", ""),
+                formats=formats,
+                url=url,
+                metadata=provider.get_metadata(raw_info),
+            )
+        except Exception:
+            return None
 
     return await loop.run_in_executor(None, _extract)
 
 
 async def download_video(url: str, format_id: str, output_dir: Optional[str] = None) -> Optional[DownloadResult]:
-    platform = detect_platform(url)
-    if not platform:
+    provider = provider_registry.detect(url)
+    if not provider:
         return None
 
     if not output_dir:
@@ -160,13 +182,7 @@ async def download_video(url: str, format_id: str, output_dir: Optional[str] = N
     loop = asyncio.get_running_loop()
 
     def _download():
-        ydl_opts = {
-            "quiet": True,
-            "no_warnings": True,
-            "format": format_id,
-            "outtmpl": os.path.join(output_dir, "%(title)s.%(ext)s"),
-            "noplaylist": True,
-        }
+        ydl_opts = provider.get_download_opts(format_id, output_dir)
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             try:
                 info = ydl.extract_info(url, download=True)
@@ -199,10 +215,7 @@ async def convert_to_mp3(input_path: str, bitrate: str = "192") -> Optional[Down
                 "-map", "a",
                 "-y", output_path,
             ]
-            subprocess.run(
-                cmd,
-                capture_output=True, check=True,
-            )
+            subprocess.run(cmd, capture_output=True, check=True)
             file_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
             return DownloadResult(
                 file_path=output_path,
@@ -210,52 +223,33 @@ async def convert_to_mp3(input_path: str, bitrate: str = "192") -> Optional[Down
                 file_size=file_size,
                 format="mp3",
             )
-        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        except (subprocess.CalledProcessError, FileNotFoundError):
             return None
 
     return await loop.run_in_executor(None, _convert)
 
 
 async def extract_playlist(url: str) -> Optional[list]:
-    platform = detect_platform(url)
-    if not platform:
+    provider = provider_registry.detect(url)
+    if not provider:
         return None
 
     loop = asyncio.get_running_loop()
 
     def _extract():
-        ydl_opts = {
-            "quiet": True,
-            "no_warnings": True,
-            "extract_flat": True,
-            "force_generic_extractor": False,
-        }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            try:
-                info = ydl.extract_info(url, download=False)
-                if "entries" not in info:
-                    return None
-                entries = []
-                for entry in info["entries"]:
-                    if entry:
-                        entry_url = entry.get("url") or entry.get("webpage_url") or entry.get("ie_key", "")
-                        if not entry_url and entry.get("id"):
-                            entry_url = f"https://www.youtube.com/watch?v={entry['id']}"
-                        entries.append({
-                            "url": entry_url,
-                            "title": entry.get("title", "unknown"),
-                            "duration": entry.get("duration", 0),
-                            "thumbnail": entry.get("thumbnail", ""),
-                            "id": entry.get("id", ""),
-                        })
-                return entries
-            except Exception:
-                return None
+        try:
+            return provider.extract_playlist(url)
+        except Exception:
+            return None
 
     return await loop.run_in_executor(None, _extract)
 
 
 async def extract_subtitles(url: str) -> Optional[list]:
+    provider = provider_registry.detect(url)
+    if not provider or not provider.supports_subtitles():
+        return None
+
     loop = asyncio.get_running_loop()
 
     def _extract():

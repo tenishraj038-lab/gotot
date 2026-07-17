@@ -16,8 +16,11 @@ from app.models.user import User, DownloadHistory
 from app.models.monetization import SubscriptionTier
 from app.services.downloader import extract_video_info, download_video, convert_to_mp3, extract_playlist
 from app.services.cache import get_cached_video_info, set_cached_video_info
+from app.services.audit_log import audit_logger
 from app.utils.helpers import is_valid_url, detect_platform
 from app.config import get_settings
+
+from app.utils.helpers import generate_task_id
 
 router = APIRouter(prefix="/download", tags=["download"])
 settings = get_settings()
@@ -127,6 +130,15 @@ async def start_download(
 ):
     user = await get_user_from_request(request, db)
 
+    if user:
+        now = __import__("datetime").datetime.utcnow()
+        if user.last_download_reset.date() < now.date():
+            user.downloads_today = 0
+            user.last_download_reset = now
+
+        if user.downloads_today >= user.daily_download_limit:
+            raise HTTPException(status_code=429, detail="Daily download limit reached. Upgrade your plan for more downloads.")
+
     info = await extract_video_info(data.url)
     if not info:
         raise HTTPException(status_code=400, detail="Could not extract video info")
@@ -148,6 +160,7 @@ async def start_download(
         final_result = result
         fmt = result.format
 
+    ip_address = request.client.host if request.client else None
     download_record = DownloadHistory(
         user_id=user.id if user else None,
         url=data.url,
@@ -157,12 +170,23 @@ async def start_download(
         format=fmt,
         status="completed",
         file_size=final_result.file_size,
-        ip_address=request.client.host if request.client else None,
+        ip_address=ip_address,
     )
     db.add(download_record)
     if user:
         user.total_downloads = (user.total_downloads or 0) + 1
+        user.downloads_today = (user.downloads_today or 0) + 1
+        if user.download_credits > 0:
+            user.download_credits -= 1
     await db.commit()
+
+    audit_logger.download(
+        user_id=str(user.id) if user else None,
+        url=data.url,
+        platform=info.platform,
+        ip_address=ip_address,
+        status="success",
+    )
 
     return {
         "file_name": final_result.file_name,
@@ -231,17 +255,23 @@ async def get_playlist_info(data: PlaylistRequest):
 
 
 @router.get("/file/{filename}")
-async def serve_file(filename: str):
-    safe_name = os.path.basename(filename)
-    file_path = os.path.join(settings.download_dir, safe_name)
+async def serve_file(
+    filename: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_user_from_request(request, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
 
-    if not os.path.exists(file_path):
-        for root, dirs, files in os.walk(settings.download_dir):
-            if safe_name in files:
-                file_path = os.path.join(root, safe_name)
-                break
-        else:
-            raise HTTPException(status_code=404, detail="File not found or expired")
+    safe_name = os.path.basename(filename)
+    resolved_path = os.path.realpath(os.path.join(settings.download_dir, safe_name))
+
+    if not resolved_path.startswith(os.path.realpath(settings.download_dir)):
+        raise HTTPException(status_code=403, detail="Invalid file path")
+
+    if not os.path.exists(resolved_path):
+        raise HTTPException(status_code=404, detail="File not found or expired")
 
     media_type = "application/octet-stream"
     if safe_name.endswith(".mp4"):
@@ -332,13 +362,73 @@ async def get_thumbnail(data: InfoRequest):
     return {"thumbnail_url": info.thumbnail}
 
 
+class QueueRequest(BaseModel):
+    url: str
+    format_id: str
+    as_mp3: bool = False
+    mp3_bitrate: str = "192"
+
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, v):
+        if not is_valid_url(v):
+            raise ValueError("Invalid URL format")
+        if not detect_platform(v):
+            raise ValueError("Unsupported platform")
+        return v.strip()
+
+
+@router.post("/queue")
+async def queue_download(
+    request: Request,
+    data: QueueRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    from celery.tasks import process_download
+    user = await get_user_from_request(request, db)
+    task_id = generate_task_id()
+
+    process_download.delay(data.url, data.format_id, task_id, settings.download_dir)
+
+    download_record = DownloadHistory(
+        user_id=user.id if user else None,
+        url=data.url,
+        platform=detect_platform(data.url) or "unknown",
+        format="queued",
+        status="queued",
+        ip_address=request.client.host if request.client else None,
+    )
+    db.add(download_record)
+    await db.commit()
+
+    return {
+        "task_id": task_id,
+        "status": "queued",
+        "message": "Download queued successfully",
+        "ws_url": f"/ws/progress/{task_id}",
+    }
+
+
+@router.get("/queue/{task_id}")
+async def get_queue_status_endpoint(task_id: str):
+    from celery.tasks import get_queue_status
+    status = get_queue_status(task_id)
+    if not status:
+        return {"task_id": task_id, "status": "pending", "progress": 0, "message": "Task not started yet"}
+    return status
+
+
 @router.get("/search")
 async def search_downloads(
     q: str = Query(min_length=1, max_length=200),
     skip: int = 0,
     limit: int = 20,
     db: AsyncSession = Depends(get_db),
+    request: Request = None,
 ):
+    user = await get_user_from_request(request, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
     safe_q = re.sub(r'[\\%_]', '', q)
     result = await db.execute(
         select(DownloadHistory)

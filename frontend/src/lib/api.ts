@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api";
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api";
 
 interface RequestOptions {
   method?: string;
@@ -142,6 +142,7 @@ export interface UserInfo {
   daily_download_limit: number;
   download_credits: number;
   total_downloads: number;
+  email_preferences?: Record<string, boolean>;
   created_at?: string;
 }
 
@@ -293,6 +294,19 @@ export const api = {
       body: { code },
     }),
 
+  getReferralStats: () =>
+    request<{ code: string | null; total_referred: number; this_week: number; this_month: number; pending: number; total_credits: number; rank: number; badge: string; reward_per_referral: number }>("/referrals/stats"),
+
+  getReferralLeaderboard: (period = "all_time") =>
+    request<{ period: string; entries: Array<{ rank: number; user_id: string; username: string; count: number; badge: string }>; my_rank: number }>(
+      `/referrals/leaderboard?period=${period}`
+    ),
+
+  getReferralHistory: (skip = 0, limit = 20) =>
+    request<{ referrals: Array<{ id: string; referred_email: string; status: string; reward_credits: number; created_at: string; completed_at: string | null }>; total: number; skip: number; limit: number }>(
+      `/referrals/history?skip=${skip}&limit=${limit}`
+    ),
+
   getAffiliateLinks: () =>
     request<AffiliateLinkInfo[]>("/affiliates/links"),
 
@@ -302,6 +316,12 @@ export const api = {
   getAdminStats: () =>
     request<AdminStats>("/admin/stats"),
 
+  googleLogin: (idToken: string) =>
+    request<{ access_token: string; refresh_token: string; token_type: string; is_new_user: boolean }>("/auth/google/login", {
+      method: "POST",
+      body: { id_token: idToken },
+    }),
+
   getMe: () =>
     request<UserInfo>("/auth/me"),
 
@@ -309,6 +329,15 @@ export const api = {
     request<{ status: string; message: string }>("/contact", {
       method: "POST",
       body: { name, email, message },
+    }),
+
+  updateProfile: (data: { username?: string; email_preferences?: Record<string, boolean> }) =>
+    request<UserInfo>("/auth/me", { method: "PUT", body: data }),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ access_token: string; refresh_token: string; token_type: string }>("/auth/change-password", {
+      method: "POST",
+      body: { current_password: currentPassword, new_password: newPassword },
     }),
 
   getAdminUsers: (skip = 0, limit = 50) =>
@@ -326,6 +355,72 @@ export const api = {
 
   cancelSubscriptionAdmin: (subId: string) =>
     request<{ id: string; status: string }>(`/admin/subscriptions/${subId}/cancel`, { method: "POST" }),
+
+  getAdminFeatureFlags: () =>
+    request<Array<{ id: string; key: string; name: string; description: string | null; enabled: boolean; updated_at: string }>>("/admin/feature-flags"),
+
+  createAdminFeatureFlag: (data: { key: string; name: string; description?: string; enabled?: boolean }) =>
+    request<{ id: string; key: string; enabled: boolean }>("/admin/feature-flags", { method: "POST", body: data }),
+
+  toggleAdminFeatureFlag: (flagId: string, enabled: boolean) =>
+    request<{ id: string; key: string; enabled: boolean }>(`/admin/feature-flags/${flagId}`, { method: "PATCH", body: { enabled } }),
+
+  getAdminSystemHealth: () =>
+    request<Record<string, string>>("/admin/health/system"),
+
+  getAdminAffiliates: () =>
+    request<{ affiliates: Array<{ id: string; platform: string; name: string; url: string; description: string | null; commission_rate: string | null; is_active: boolean; clicks: number; created_at: string }>; total: number }>("/admin/affiliates"),
+
+  createAdminAffiliate: (data: { platform: string; name: string; url: string; description?: string; commission_rate?: string }) =>
+    request<{ id: string; status: string }>("/admin/affiliates", { method: "POST", body: data }),
+
+  updateAdminAffiliate: (linkId: string, data: { platform?: string; name?: string; url?: string; description?: string; commission_rate?: string; is_active?: boolean }) =>
+    request<{ id: string; status: string }>(`/admin/affiliates/${linkId}`, { method: "PATCH", body: data }),
+
+  deleteAdminAffiliate: (linkId: string) =>
+    request<{ status: string }>(`/admin/affiliates/${linkId}`, { method: "DELETE" }),
+
+  getAdminQueueStatus: () =>
+    request<{ total: number; pending: number; processing: number; completed: number; failed: number; recent: Array<{ id: string; url: string; status: string; created_at: string }> }>("/admin/queue-status"),
+
+  getAdminAuditLogs: (query = "", action = "", skip = 0, limit = 50) =>
+    request<{ logs: Array<{ id: string; action: string; user_id: string | null; email: string | null; ip_address: string | null; resource: string | null; details: Record<string, unknown> | null; status: string; created_at: string }>; total: number }>(
+      `/admin/audit-logs?query=${encodeURIComponent(query)}&action=${encodeURIComponent(action)}&skip=${skip}&limit=${limit}`
+    ),
+
+  getAdminSystemAlerts: () =>
+    request<{ alerts: Array<{ severity: string; message: string; metric: string }>; generated_at: string }>("/admin/system-alerts"),
+
+  getAdminExecutiveAnalytics: (days = 30) =>
+    request<{
+      users: { total: number; today: number; this_month: number; returning_weekly: number };
+      downloads: { total: number; today: number; this_month: number; by_platform: Record<string, number> };
+      queue: { pending: number; processing: number; failed: number };
+      revenue: { total_usd: number; mtd_usd: number };
+      premium: { active_subscriptions: number; monthly_conversions: number };
+      referrals: { total: number; this_month: number };
+      api: { total_requests: number };
+      period_days: number;
+    }>(`/admin/executive-analytics?days=${days}`),
+
+  getAdminDownloadAnalytics: (days = 30) =>
+    request<{ total: number; days: number; by_platform: Record<string, number>; by_format: Record<string, number>; daily: Array<{ date: string; count: number }> }>(
+      `/admin/download-analytics?days=${days}`
+    ),
+
+  getNotifications: (skip = 0, limit = 50, unreadOnly = false) =>
+    request<{ notifications: Array<{ id: string; type: string; title: string; message: string; data: Record<string, unknown> | null; is_read: boolean; created_at: string }>; total: number; unread: number }>(
+      `/notifications/?skip=${skip}&limit=${limit}&unread_only=${unreadOnly}`
+    ),
+
+  getUnreadCount: () =>
+    request<{ unread: number }>("/notifications/unread-count"),
+
+  markNotificationRead: (id: string) =>
+    request<{ status: string }>(`/notifications/${id}/read`, { method: "POST" }),
+
+  markAllNotificationsRead: () =>
+    request<{ status: string }>("/notifications/read-all", { method: "POST" }),
 
   getPlaylistInfo: (url: string) =>
     request<{ entries: PlaylistEntry[]; total: number }>("/download/playlist", {

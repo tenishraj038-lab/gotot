@@ -48,13 +48,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Run database migrations
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://gotot:gotot_pass@localhost:5432/gotot
+          SECRET_KEY: test-secret-key-for-ci
+        run: alembic upgrade head
+
       - name: Run backend tests
         working-directory: ./backend
         env:
           DATABASE_URL: postgresql+asyncpg://gotot:gotot_pass@localhost:5432/gotot
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: test-secret-key-for-ci
-        run: pytest -v --tb=short
+        run: pytest -v --tb=short --cov=app --cov-report=term-missing
 
   frontend:
     runs-on: ubuntu-latest
@@ -71,6 +78,10 @@ jobs:
       - name: Install dependencies
         working-directory: ./frontend
         run: npm ci
+
+      - name: TypeScript check
+        working-directory: ./frontend
+        run: npx tsc --noEmit
 
       - name: Lint
         working-directory: ./frontend

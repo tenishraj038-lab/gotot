@@ -1,0 +1,148 @@
+x-logging: &prod-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "7"
+
+services:
+  nginx:
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - nginx_ssl:/etc/nginx/ssl
+      - static_volume:/static
+      - downloads_volume:/tmp/downloads
+      - ./nginx/cache:/var/cache/nginx
+    logging: *prod-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  backend:
+    environment:
+      - UVICORN_WORKERS=${UVICORN_WORKERS:-8}
+      - CELERY_CONCURRENCY=${CELERY_CONCURRENCY:-4}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+    logging: *prod-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+
+  celery_worker:
+    deploy:
+      replicas: ${CELERY_WORKERS:-2}
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+
+  postgres:
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./backups:/backups
+
+  redis:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  prometheus:
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+      - "--alertmanager.url=http://alertmanager:9093"
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    expose:
+      - "9093"
+    volumes:
+      - ./prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - alertmanager_data:/alertmanager
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    logging: *prod-logging
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_SERVER_ROOT_URL=https://gotot.app/grafana
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    logging: *prod-logging
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:latest
+    expose:
+      - "3100"
+    volumes:
+      - ./loki-config.yml:/etc/loki/loki-config.yml
+      - loki_data:/loki
+    command: -config.file=/etc/loki/loki-config.yml
+    logging: *prod-logging
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:latest
+    volumes:
+      - /var/log:/var/log:ro
+      - ./promtail-config.yml:/etc/promtail/promtail-config.yml
+    command: -config.file=/etc/promtail/promtail-config.yml
+    logging: *prod-logging
+    restart: unless-stopped
+
+  uptime_monitor:
+    image: golang:1.22-alpine
+    profiles: ["monitoring"]
+    entrypoint: |
+      sh -c "
+        apk add --no-cache curl jq &&
+        while true; do
+          STATUS=\$$(curl -so /dev/null -w '%{http_code}' https://gotot.app/health 2>/dev/null || echo '000');
+          echo \"[\$$(date -u +%Y-%m-%dT%H:%M:%SZ)] Health: \$${STATUS}\";
+          [ \"\$${STATUS}\" != \"200\" ] && echo \"ALERT: Health check failed!\" >&2;
+          sleep 60;
+        done
+      "
+    logging: *prod-logging
+    restart: unless-stopped
+
+volumes:
+  grafana_data:
+  alertmanager_data:
+  loki_data:

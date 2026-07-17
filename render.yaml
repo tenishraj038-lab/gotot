@@ -1,0 +1,68 @@
+services:
+  - type: web
+    name: gotot-api
+    env: docker
+    region: oregon
+    plan: free
+    branch: main
+    healthCheckPath: /health
+    dockerfilePath: ./backend/Dockerfile
+    envVars:
+      - key: SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: ALLOWED_ORIGINS
+        value: https://gotot.vercel.app
+      - key: FRONTEND_URL
+        value: https://gotot.vercel.app
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: RAZORPAY_PRO_PLAN_ID
+        sync: false
+      - key: RAZORPAY_UNLIMITED_PLAN_ID
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM_EMAIL
+        value: noreply@gotot.app
+      - key: ADMIN_EMAIL
+        value: admin@gotot.app
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: CURRENCY
+        value: USD
+      - key: RATE_LIMIT_PER_MINUTE
+        value: "100"
+      - key: DOWNLOAD_TIMEOUT
+        value: "300"
+      - key: INFO_TIMEOUT
+        value: "30"
+      - key: CACHE_TTL
+        value: "3600"
+      - key: FILE_RETENTION_HOURS
+        value: "1"
+      - key: MAX_FILE_SIZE_MB
+        value: "500"

@@ -8,6 +8,7 @@ from app.services.auth_service import (
     hash_password, verify_password,
     create_access_token, create_refresh_token, decode_token,
 )
+from app.services.audit_log import audit_logger
 from app.middleware.rate_limit import limiter
 from slowapi.util import get_remote_address
 
@@ -74,9 +75,12 @@ async def register(request: Request, data: RegisterRequest, db: AsyncSession = D
     db.add(user)
     await db.commit()
 
+    ip = request.client.host if request.client else "unknown"
+    audit_logger.register(str(user.id), data.email, ip)
+
     return TokenResponse(
         access_token=create_access_token({"sub": str(user.id), "role": user.role.value}),
-        refresh_token=create_refresh_token({"sub": str(user.id)}),
+        refresh_token=create_refresh_token({"sub": str(user.id)}, token_version=user.refresh_token_version),
     )
 
 
@@ -85,15 +89,21 @@ async def login(request: Request, data: LoginRequest, db: AsyncSession = Depends
     result = await db.execute(select(User).where(User.email == data.email))
     user = result.scalar_one_or_none()
 
+    ip = request.client.host if request.client else "unknown"
+
     if not user or not verify_password(data.password, user.hashed_password):
+        audit_logger.login_failed(data.email, ip)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     if not user.is_active:
+        audit_logger.login_failed(data.email, ip)
         raise HTTPException(status_code=403, detail="Account is deactivated")
+
+    audit_logger.login_success(str(user.id), data.email, ip)
 
     return TokenResponse(
         access_token=create_access_token({"sub": str(user.id), "role": user.role.value}),
-        refresh_token=create_refresh_token({"sub": str(user.id)}),
+        refresh_token=create_refresh_token({"sub": str(user.id)}, token_version=user.refresh_token_version),
     )
 
 
@@ -104,15 +114,21 @@ async def refresh_token(request: Request, refresh_token: str, db: AsyncSession =
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
     user_id = payload.get("sub")
+    token_ver = payload.get("ver", 0)
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
 
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found")
 
+    if token_ver != user.refresh_token_version:
+        raise HTTPException(status_code=401, detail="Refresh token has been revoked. Please login again.")
+
+    user.refresh_token_version += 1
+
     return TokenResponse(
         access_token=create_access_token({"sub": str(user.id), "role": user.role.value}),
-        refresh_token=create_refresh_token({"sub": str(user.id)}),
+        refresh_token=create_refresh_token({"sub": str(user.id)}, token_version=user.refresh_token_version),
     )
 
 
@@ -127,6 +143,7 @@ class UserInfoResponse(BaseModel):
     downloads_today: int
     download_credits: int
     total_downloads: int
+    email_preferences: dict = {}
     created_at: str
 
 
@@ -162,5 +179,111 @@ async def get_me(request: Request, db: AsyncSession = Depends(get_db)):
         downloads_today=user.downloads_today,
         download_credits=user.download_credits,
         total_downloads=user.total_downloads,
+        email_preferences=getattr(user, "email_preferences", {}),
         created_at=user.created_at.isoformat(),
+    )
+
+
+class UpdateProfileRequest(BaseModel):
+    username: str | None = None
+    email_preferences: dict | None = None
+
+
+@router.put("/me", response_model=UserInfoResponse)
+async def update_profile(
+    request: Request,
+    data: UpdateProfileRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    token = auth_header.split(" ")[1]
+    payload = decode_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    result = await db.execute(select(User).where(User.id == payload.get("sub")))
+    user = result.scalar_one_or_none()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    if data.username is not None:
+        if len(data.username) < 3:
+            raise HTTPException(status_code=400, detail="Username must be at least 3 characters")
+        if not data.username.isalnum():
+            raise HTTPException(status_code=400, detail="Username must be alphanumeric")
+        existing = await db.execute(
+            select(User).where(User.username == data.username, User.id != user.id)
+        )
+        if existing.scalar_one_or_none():
+            raise HTTPException(status_code=409, detail="Username already taken")
+        user.username = data.username
+
+    if data.email_preferences is not None:
+        user.email_preferences = data.email_preferences
+
+    await db.commit()
+    await db.refresh(user)
+
+    return UserInfoResponse(
+        id=str(user.id),
+        email=user.email,
+        username=user.username,
+        role=user.role.value if hasattr(user.role, "value") else user.role,
+        is_active=user.is_active,
+        is_admin=user.is_admin,
+        daily_download_limit=user.daily_download_limit,
+        downloads_today=user.downloads_today,
+        download_credits=user.download_credits,
+        total_downloads=user.total_downloads,
+        email_preferences=getattr(user, "email_preferences", {}),
+        created_at=user.created_at.isoformat(),
+    )
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.post("/change-password")
+async def change_password(
+    request: Request,
+    data: ChangePasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    if len(data.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    if not any(c.isupper() for c in data.new_password):
+        raise HTTPException(status_code=400, detail="Password must contain an uppercase letter")
+    if not any(c.isdigit() for c in data.new_password):
+        raise HTTPException(status_code=400, detail="Password must contain a digit")
+
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    token = auth_header.split(" ")[1]
+    payload = decode_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    result = await db.execute(select(User).where(User.id == payload.get("sub")))
+    user = result.scalar_one_or_none()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    if not verify_password(data.current_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+
+    user.hashed_password = hash_password(data.new_password)
+    user.refresh_token_version += 1
+    await db.commit()
+
+    ip = request.client.host if request.client else "unknown"
+    audit_logger.register(str(user.id), user.email, ip)
+
+    return TokenResponse(
+        access_token=create_access_token({"sub": str(user.id), "role": user.role.value}),
+        refresh_token=create_refresh_token({"sub": str(user.id)}, token_version=user.refresh_token_version),
     )

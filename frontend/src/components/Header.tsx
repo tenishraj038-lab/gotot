@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { Moon, Sun, Github, User, LogOut, LayoutDashboard, Menu, X, Globe } from "lucide-react";
+import { Moon, Sun, Github, User, LogOut, LayoutDashboard, Menu, X, Globe, Bell } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { loadTokens, clearTokens, getAuthToken } from "@/lib/api";
 import { useRouter } from "next/navigation";
@@ -10,6 +10,32 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import LocaleSwitcher from "./LocaleSwitcher";
 import { useLocale } from "@/lib/i18n";
+
+function NotificationBell() {
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    import("@/lib/api").then(({ api, loadTokens }) => {
+      loadTokens();
+      api.getUnreadCount().then((d) => setUnread(d.unread)).catch(() => {});
+    });
+    const interval = setInterval(() => {
+      import("@/lib/api").then(({ api }) => {
+        api.getUnreadCount().then((d) => setUnread(d.unread)).catch(() => {});
+      });
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+  return (
+    <Link href="/notifications" className="relative p-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-200" title="Notifications">
+      <Bell className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+      {unread > 0 && (
+        <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+          {unread > 9 ? "9+" : unread}
+        </span>
+      )}
+    </Link>
+  );
+}
 
 export default function Header() {
   const { t } = useLocale();
@@ -26,16 +52,22 @@ export default function Header() {
     loadTokens();
     if (getAuthToken()) {
       import("@/lib/api").then(({ api }) => {
-        api.getSubscriptionStatus().then((sub) => {
-          setSubscription(sub);
-          setUser({ id: "", email: "", username: "", role: sub.tier, downloads_today: 0, daily_download_limit: sub.daily_downloads, download_credits: 0, total_downloads: 0 });
-        }).catch(() => {});
+        api.getMe().then(setUser).catch(() => {});
+        api.getSubscriptionStatus().then(setSubscription).catch(() => {});
       });
     }
     const handleScroll = () => setScrolled(window.scrollY > 10);
-    window.addEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && mobileMenuOpen) setMobileMenuOpen(false);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [mobileMenuOpen]);
 
   const handleLogout = () => {
     clearTokens();
@@ -68,6 +100,9 @@ export default function Header() {
             </Link>
             <Link href="/pricing" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
               {t.nav.pricing}
+            </Link>
+            <Link href="/docs" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+              API
             </Link>
             <div className="relative group">
               <button className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors flex items-center gap-1">
@@ -112,15 +147,28 @@ export default function Header() {
 
             {isAuthenticated ? (
               <div className="hidden md:flex items-center gap-2">
+                <NotificationBell />
                 <Link
                   href="/dashboard"
                   className="p-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-200"
+                  title="Dashboard"
                 >
                   <LayoutDashboard className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                </Link>
+                <Link
+                  href="/settings"
+                  className="p-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-200"
+                  title="Settings"
+                >
+                  <svg className="w-4 h-4 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
                 </Link>
                 <button
                   onClick={handleLogout}
                   className="p-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-200"
+                  title="Sign out"
                 >
                   <LogOut className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                 </button>
@@ -171,6 +219,8 @@ export default function Header() {
             {isAuthenticated ? (
               <>
                 <Link href="/dashboard" className="block px-3 py-2 rounded-xl text-sm hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setMobileMenuOpen(false)}>{t.nav.dashboard}</Link>
+                <Link href="/referrals" className="block px-3 py-2 rounded-xl text-sm hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setMobileMenuOpen(false)}>Referrals</Link>
+                <Link href="/settings" className="block px-3 py-2 rounded-xl text-sm hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setMobileMenuOpen(false)}>Settings</Link>
                 <button onClick={() => { handleLogout(); setMobileMenuOpen(false); }} className="block w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-gray-100 dark:hover:bg-gray-800">{t.nav.signOut}</button>
               </>
             ) : (

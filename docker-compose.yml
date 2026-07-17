@@ -12,7 +12,7 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_ssl:/etc/nginx/ssl
       - static_volume:/static
     depends_on:
       - frontend
@@ -48,15 +48,17 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     env_file:
       - ./backend/.env
+    environment:
+      - UVICORN_WORKERS=${UVICORN_WORKERS:-4}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - static_volume:/app/static
       - downloads_volume:/tmp/downloads
@@ -67,10 +69,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s
 
   celery_worker:
     image: gotot-backend:latest
-    command: celery -A celery worker --loglevel=info --concurrency=4 --max-tasks-per-child=100
+    command: celery -A celery worker --loglevel=info --concurrency=${CELERY_CONCURRENCY:-4} --max-tasks-per-child=100
     env_file:
       - ./backend/.env
     depends_on:
@@ -97,16 +100,16 @@ services:
     expose:
       - "5432"
     environment:
-      POSTGRES_USER: gotot
-      POSTGRES_PASSWORD: gotot_pass
-      POSTGRES_DB: gotot
+      POSTGRES_USER: ${POSTGRES_USER:-gotot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gotot_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-gotot}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
     logging: *default-logging
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U gotot"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gotot}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -117,7 +120,7 @@ services:
       - "6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru ${REDIS_REQUIREPASS:+--requirepass ${REDIS_REQUIREPASS}}
     logging: *default-logging
     restart: unless-stopped
     healthcheck:
@@ -128,8 +131,8 @@ services:
 
   prometheus:
     image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
+    expose:
+      - "9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
@@ -139,9 +142,32 @@ services:
     logging: *default-logging
     restart: unless-stopped
 
+  backup:
+    image: postgres:16-alpine
+    profiles: ["backup"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-gotot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gotot_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-gotot}
+      PGHOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup.sh:/backup.sh:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "0 */6 * * * /backup.sh >> /var/log/backup.log 2>&1" | crontab -
+        crond -f
+    logging: *default-logging
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   redis_data:
   static_volume:
   downloads_volume:
   prometheus_data:
+  nginx_ssl:

@@ -38,6 +38,10 @@ async def submit_contact(data: ContactRequest, request: Request):
     import logging
     logger = logging.getLogger("gotot.contact")
     logger.info(f"Contact form submission from {data.email}: {data.message[:50]}...")
+    from app.services.email_service import send_contact_notification
+    sent = await send_contact_notification(data.name, data.email, data.message)
+    if sent:
+        logger.info("Contact notification emailed to admin")
     return {
         "status": "success",
         "message": "Thank you for your message. We'll get back to you within 24 hours.",

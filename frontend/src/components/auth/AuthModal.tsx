@@ -1,11 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Mail, Lock, User, Loader2, ArrowRight } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { api, setTokens, loadTokens } from "@/lib/api";
 import toast from "react-hot-toast";
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: {
+            client_id: string;
+            callback: (response: { credential: string }) => void;
+            auto_select?: boolean;
+            cancel_on_tap_outside?: boolean;
+          }) => void;
+          renderButton: (element: HTMLElement, options: { theme?: string; size?: string; width?: string }) => void;
+          prompt: () => void;
+        };
+      };
+    };
+  }
+}
 
 export default function AuthModal() {
   const { isAuthModalOpen, setAuthModalOpen, setUser, setSubscription } = useStore();
@@ -14,6 +33,48 @@ export default function AuthModal() {
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  const handleGoogleResponse = useCallback(async (response: { credential: string }) => {
+    setGoogleLoading(true);
+    try {
+      const data = await api.googleLogin(response.credential);
+      setTokens(data.access_token, data.refresh_token);
+      loadTokens();
+      setAuthModalOpen(false);
+      toast.success(data.is_new_user ? "Account created! Welcome to GoTot." : "Welcome back!");
+      const me = await api.getMe();
+      setUser(me);
+      const sub = await api.getSubscriptionStatus().catch(() => null);
+      if (sub) setSubscription(sub);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Google login failed");
+    } finally {
+      setGoogleLoading(false);
+    }
+  }, [setAuthModalOpen, setUser, setSubscription]);
+
+  useEffect(() => {
+    if (!isAuthModalOpen) return;
+    if (typeof window === "undefined" || !window.google) return;
+
+    try {
+      window.google.accounts.id.initialize({
+        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "",
+        callback: handleGoogleResponse,
+        cancel_on_tap_outside: false,
+      });
+
+      const btn = document.getElementById("google-signin-btn");
+      if (btn) {
+        window.google.accounts.id.renderButton(btn, {
+          theme: "outline",
+          size: "large",
+          width: "100%",
+        });
+      }
+    } catch {}
+  }, [isAuthModalOpen, handleGoogleResponse]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,6 +158,22 @@ export default function AuthModal() {
                   Sign Up
                 </button>
               </div>
+
+              {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID && (
+                <div className="mb-6">
+                  <div className="relative mb-4">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-200 dark:border-gray-700" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-white dark:bg-gray-900 px-2 text-gray-500">or continue with</span>
+                    </div>
+                  </div>
+                  <div id="google-signin-btn" className="flex justify-center">
+                    {googleLoading && <Loader2 className="w-5 h-5 animate-spin text-gray-400" />}
+                  </div>
+                </div>
+              )}
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 {mode === "register" && (

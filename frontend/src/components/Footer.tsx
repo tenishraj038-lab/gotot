@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useLocale } from "@/lib/i18n";
+import NewsletterSignup from "./NewsletterSignup";
 
 export default function Footer() {
   const { t } = useLocale();
@@ -49,13 +50,23 @@ export default function Footer() {
               <li><Link href="/pricing" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">{t.nav.pricing}</Link></li>
               <li><Link href="/#features" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">{t.nav.features}</Link></li>
               <li><Link href="/contact" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">Contact</Link></li>
+              <li><Link href="/help" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">Help & Feedback</Link></li>
+              <li><Link href="/docs" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">API Docs</Link></li>
               <li><Link href="/privacy" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">Privacy</Link></li>
               <li><Link href="/terms" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">Terms</Link></li>
             </ul>
           </div>
         </div>
 
-        <div className="mt-8 pt-8 border-t border-gray-200/50 dark:border-gray-800/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="mt-8 pt-8 border-t border-gray-200/50 dark:border-gray-800/50">
+          <div className="max-w-md mx-auto text-center mb-8">
+            <h3 className="text-sm font-semibold mb-2">Stay Updated</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Get the latest features and updates</p>
+            <NewsletterSignup />
+          </div>
+        </div>
+
+        <div className="pt-8 border-t border-gray-200/50 dark:border-gray-800/50 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-gray-500 dark:text-gray-500">
             &copy; {new Date().getFullYear()} GoTot. {t.footer.rights}
           </p>

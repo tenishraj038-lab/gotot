@@ -1,0 +1,102 @@
+groups:
+  - name: gotot_alerts
+    interval: 30s
+    rules:
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate ({{ $value | humanizePercentage }})"
+          description: "Backend is returning 5xx errors at {{ $value | humanizePercentage }} for the last 2 minutes."
+
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API latency (p95 > 5s)"
+          description: "95th percentile of request duration is {{ $value }}s."
+
+      - alert: QueueBacklog
+        expr: gotot_queue_pending > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Download queue backlog ({{ $value }} pending)"
+          description: "Download queue has {{ $value }} pending tasks for over 5 minutes."
+
+      - alert: DBConnectionPoolExhausted
+        expr: gotot_db_pool_available == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection pool exhausted"
+          description: "All database connections are in use."
+
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage ({{ $value | humanizePercentage }})"
+          description: "Memory usage is at {{ $value | humanizePercentage }}."
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Low disk space"
+          description: "Less than 10% disk space remaining."
+
+      - alert: RedisDown
+        expr: gotot_redis_up == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is down"
+          description: "Redis server is not responding."
+
+      - alert: PostgresDown
+        expr: gotot_db_up == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "Database server is not responding."
+
+      - alert: RateLimitHit
+        expr: rate(gotot_rate_limit_exceeded_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High rate limit exceeded rate"
+          description: "Users are hitting rate limits {{ $value }} times/s."
+
+      - alert: FailedDownloadsSpike
+        expr: rate(gotot_downloads_failed_total[5m]) > rate(gotot_downloads_total[5m]) * 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Failed downloads spike"
+          description: "More than 10% of downloads are failing."
+
+      - alert: SecurityEventDetected
+        expr: rate(gotot_security_events_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Security events detected"
+          description: "Security events are being triggered at {{ $value }} events/s."

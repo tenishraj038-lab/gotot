@@ -4,7 +4,7 @@ from unittest.mock import patch, MagicMock
 
 class TestSettings:
     def test_settings_load(self):
-        with patch.dict("os.environ", {"SECRET_KEY": "test-key"}):
+        with patch.dict("os.environ", {"SECRET_KEY": "test-key", "ENVIRONMENT": "development"}):
             from app.config import Settings
             s = Settings(secret_key="test-key")
             assert s.secret_key == "test-key"

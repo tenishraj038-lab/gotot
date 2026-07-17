@@ -10,3 +10,11 @@ dist/
 build/
 .DS_Store
 *.log
+/package-lock.json
+.railway/
+nginx/ssl/
+
+# Backup files
+*.backup
+*.dump
+backups/

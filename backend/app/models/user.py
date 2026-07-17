@@ -1,8 +1,20 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, DateTime, Boolean, Text, Integer, Enum as SAEnum, BigInteger
+import json
+from sqlalchemy import String, DateTime, Boolean, Text, Integer, Enum as SAEnum, BigInteger, TypeDecorator
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
+
+
+class JSONText(TypeDecorator):
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        return json.dumps(value) if value else "{}"
+
+    def process_result_value(self, value, dialect):
+        return json.loads(value) if value else {}
 from app.models.database import Base
 from app.models.monetization import SubscriptionTier
 import enum
@@ -19,11 +31,13 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
-    daily_download_limit: Mapped[int] = mapped_column(Integer, default=999)
+    daily_download_limit: Mapped[int] = mapped_column(Integer, default=5)
     downloads_today: Mapped[int] = mapped_column(Integer, default=0)
     download_credits: Mapped[int] = mapped_column(Integer, default=0)
     total_downloads: Mapped[int] = mapped_column(BigInteger, default=0)
     last_download_reset: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    refresh_token_version: Mapped[int] = mapped_column(Integer, default=0)
+    email_preferences: Mapped[dict] = mapped_column(JSONText, default={})
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

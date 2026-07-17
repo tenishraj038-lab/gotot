@@ -30,6 +30,17 @@ class Settings(BaseSettings):
     razorpay_unlimited_plan_id: str = ""
     currency: str = "USD"
 
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = "noreply@gotot.app"
+    admin_email: str = "admin@gotot.app"
+
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_redirect_uri: str = "http://localhost:3000/auth/google/callback"
+
     model_config = {"env_file": ".env", "case_sensitive": False}
 
 

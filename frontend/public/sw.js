@@ -1,9 +1,10 @@
-const CACHE_NAME = "gotot-v1";
+const CACHE_NAME = "gotot-v2";
 const STATIC_ASSETS = [
   "/",
+  "/offline",
   "/manifest.json",
-  "/icons/icon-192x192.png",
-  "/icons/icon-512x512.png",
+  "/icons/icon-192x192.svg",
+  "/icons/icon-512x512.svg",
 ];
 
 self.addEventListener("install", (event) => {
@@ -21,24 +22,30 @@ self.addEventListener("activate", (event) => {
       return Promise.all(
         keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).then((response) => {
+    fetch(event.request)
+      .then((response) => {
         if (response.status === 200 && response.type === "basic") {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
         return response;
-      });
-    })
+      })
+      .catch(() => {
+        return caches.match(event.request).then((cached) => {
+          if (cached) return cached;
+          if (event.request.mode === "navigate") {
+            return caches.match("/offline");
+          }
+          return new Response("Offline", { status: 503 });
+        });
+      })
   );
 });

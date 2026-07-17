@@ -13,42 +13,85 @@ err() { echo -e "${RED}[✗]${NC} $1"; exit 1; }
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 check_deps() {
-  command -v docker >/dev/null 2>&1 || err "Docker not found. Install: https://docs.docker.com/get-docker/"
-  command -v docker compose >/dev/null 2>&1 || warn "docker compose not found, trying docker-compose..."
+  command -v docker >/dev/null 2>&1 || err "Docker not found."
+  if docker compose version >/dev/null 2>&1; then
+    COMPOSE_CMD="docker compose"
+  elif command -v docker-compose >/dev/null 2>&1; then
+    COMPOSE_CMD="docker-compose"
+    warn "Using legacy docker-compose (v1). Install Docker Compose v2 for better performance."
+  else
+    err "docker compose not found."
+  fi
 }
 
 check_env() {
   if [ ! -f "$ROOT_DIR/backend/.env" ]; then
-    warn "backend/.env not found, creating from .env.example"
-    cp "$ROOT_DIR/backend/.env.example" "$ROOT_DIR/backend/.env"
-    log "Created backend/.env - edit with your production secrets"
+    if [ -f "$ROOT_DIR/backend/.env.example" ]; then
+      warn "backend/.env not found, creating from .env.example"
+      cp "$ROOT_DIR/backend/.env.example" "$ROOT_DIR/backend/.env"
+      log "Created backend/.env - edit with your production secrets"
+    else
+      err "backend/.env.example not found. Create backend/.env manually."
+    fi
+  fi
+}
+
+generate_ssl() {
+  if [ ! -f "$ROOT_DIR/nginx/ssl/cert.pem" ] || [ ! -f "$ROOT_DIR/nginx/ssl/key.pem" ]; then
+    log "Generating self-signed SSL certificates..."
+    mkdir -p "$ROOT_DIR/nginx/ssl"
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+      -keyout "$ROOT_DIR/nginx/ssl/key.pem" \
+      -out "$ROOT_DIR/nginx/ssl/cert.pem" \
+      -subj "/C=US/ST=State/L=City/O=GoTot/CN=gotot.app" \
+      -addext "subjectAltName=DNS:gotot.app,DNS:www.gotot.app,IP:0.0.0.0" 2>/dev/null
+    chmod 600 "$ROOT_DIR/nginx/ssl/key.pem"
+    log "SSL certificates generated"
   fi
 }
 
 start_production() {
   check_deps
   check_env
+  generate_ssl
 
   log "Building and starting all services..."
   cd "$ROOT_DIR"
 
-  docker compose build --parallel
-  docker compose up -d
+  ${COMPOSE_CMD} build --parallel
+  ${COMPOSE_CMD} up -d
 
   log "GoTot is running!"
   echo ""
-  echo "  Frontend:  http://localhost:3000"
+  echo "  Frontend:  https://localhost"
   echo "  Backend:   http://localhost:8000"
   echo "  Docs:      http://localhost:8000/docs"
   echo "  Prometheus: http://localhost:9090"
   echo ""
-  warn "For production:"
-  warn "  1. Set SECRET_KEY in backend/.env to a random 64-char string"
+  warn "For production deployment:"
+  warn "  1. Set SECRET_KEY to a random 64-char string in backend/.env"
   warn "  2. Set RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET in backend/.env"
-  warn "  3. Configure SSL certs in nginx/ssl/"
-  warn "  4. Set NEXT_PUBLIC_API_URL=/api in frontend/.env.production"
+  warn "  3. Replace SSL certs with real certificates in nginx/ssl/"
+  warn "  4. Set POSTGRES_PASSWORD env var (override docker-compose default)"
+  warn "  5. Set REDIS_REQUIREPASS for Redis authentication"
   echo ""
   log "Run ./run.sh logs to see service logs"
+}
+
+start_backup() {
+  check_deps
+  mkdir -p "$ROOT_DIR/backups"
+  log "Running database backup..."
+  cd "$ROOT_DIR"
+  docker run --rm --network gotot_default \
+    -e PGHOST=postgres -e PGPORT=5432 \
+    -e POSTGRES_USER=${POSTGRES_USER:-gotot} \
+    -e POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-gotot_pass} \
+    -e POSTGRES_DB=${POSTGRES_DB:-gotot} \
+    -v "$ROOT_DIR/backups:/backups" \
+    postgres:16-alpine /bin/sh -c \
+    'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" | gzip > "/backups/gotot_$(date +%Y%m%d_%H%M%S).sql.gz"'
+  log "Backup completed"
 }
 
 start_backend_dev() {
@@ -66,18 +109,18 @@ start_frontend_dev() {
 
 start_logs() {
   cd "$ROOT_DIR"
-  docker compose logs -f
+  ${COMPOSE_CMD} logs -f
 }
 
 start_stop() {
   cd "$ROOT_DIR"
-  docker compose down
+  ${COMPOSE_CMD} down
   log "All services stopped"
 }
 
 start_clean() {
   cd "$ROOT_DIR"
-  docker compose down -v
+  ${COMPOSE_CMD} down -v
   log "All services stopped and volumes removed"
 }
 
@@ -115,6 +158,9 @@ case "${1:-production}" in
   migrate)
     start_migration
     ;;
+  backup)
+    start_backup
+    ;;
   *)
     echo "Usage: ./run.sh [command]"
     echo ""
@@ -127,5 +173,6 @@ case "${1:-production}" in
     echo "  stop        Stop all Docker Compose services"
     echo "  clean       Stop and remove Docker volumes"
     echo "  migrate     Run Alembic migrations"
+    echo "  backup      Run one-time database backup"
     ;;
 esac
