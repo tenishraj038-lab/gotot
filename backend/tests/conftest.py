@@ -1,20 +1,7 @@
 import pytest
 import pytest_asyncio
-import asyncio
 from unittest.mock import patch, AsyncMock, MagicMock
 from httpx import AsyncClient, ASGITransport
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest.fixture
-def anyio_backend():
-    return "asyncio"
 
 
 @pytest.fixture
@@ -32,8 +19,7 @@ def mock_user():
     user.id = "test-user-id"
     user.email = "test@example.com"
     user.username = "testuser"
-    user.role = MagicMock()
-    user.role.value = "free"
+    user.role = "free"
     user.is_active = True
     user.is_admin = False
     user.downloads_today = 0

@@ -7,8 +7,10 @@ from app.models.user import User
 from app.services.auth_service import (
     hash_password, verify_password,
     create_access_token, create_refresh_token, decode_token,
+    create_email_verification_token, create_password_reset_token,
 )
 from app.services.audit_log import audit_logger
+from app.services.email_service import send_verify_email, send_password_reset_email
 from app.middleware.rate_limit import limiter
 from slowapi.util import get_remote_address
 
@@ -76,7 +78,11 @@ async def register(request: Request, data: RegisterRequest, db: AsyncSession = D
     await db.commit()
 
     ip = request.client.host if request.client else "unknown"
-    audit_logger.register(str(user.id), data.email, ip)
+    audit_logger.register(str(user.id), user.email, ip)
+
+    # Send verification email
+    verify_token = create_email_verification_token(user.email)
+    await send_verify_email(user.email, user.username, verify_token)
 
     return TokenResponse(
         access_token=create_access_token({"sub": str(user.id), "role": user.role.value}),
@@ -287,3 +293,85 @@ async def change_password(
         access_token=create_access_token({"sub": str(user.id), "role": user.role.value}),
         refresh_token=create_refresh_token({"sub": str(user.id)}, token_version=user.refresh_token_version),
     )
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+@router.post("/verify-email")
+async def verify_email(
+    data: VerifyEmailRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    payload = decode_token(data.token)
+    if not payload or payload.get("type") != "email_verify":
+        raise HTTPException(status_code=400, detail="Invalid or expired verification token")
+
+    email = payload.get("sub")
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.is_verified:
+        return {"status": "already_verified"}
+
+    user.is_verified = True
+    await db.commit()
+    return {"status": "verified"}
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+@router.post("/forgot-password")
+async def forgot_password(
+    data: ForgotPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(User).where(User.email == data.email))
+    user = result.scalar_one_or_none()
+    if not user:
+        return {"status": "if_account_exists_email_sent"}
+
+    reset_token = create_password_reset_token(user.email)
+    await send_password_reset_email(user.email, user.username, reset_token)
+    return {"status": "if_account_exists_email_sent"}
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, v):
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        if not any(c.isupper() for c in v):
+            raise ValueError("Password must contain an uppercase letter")
+        if not any(c.isdigit() for c in v):
+            raise ValueError("Password must contain a digit")
+        return v
+
+
+@router.post("/reset-password")
+async def reset_password(
+    data: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    payload = decode_token(data.token)
+    if not payload or payload.get("type") != "password_reset":
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    email = payload.get("sub")
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=400, detail="Invalid reset link")
+
+    user.hashed_password = hash_password(data.new_password)
+    user.refresh_token_version += 1
+    await db.commit()
+    return {"status": "password_reset"}

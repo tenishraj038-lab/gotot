@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from sqlalchemy import String, DateTime, Boolean, Text, Integer, Enum as SAEnum, Numeric, ForeignKey, BigInteger
+from sqlalchemy import String, DateTime, Boolean, Text, Integer, Numeric, ForeignKey, BigInteger
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from app.models.database import Base
@@ -34,8 +34,8 @@ class Subscription(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
-    tier: Mapped[SubscriptionTier] = mapped_column(SAEnum(SubscriptionTier), nullable=False)
-    status: Mapped[SubscriptionStatus] = mapped_column(SAEnum(SubscriptionStatus), default=SubscriptionStatus.ACTIVE)
+    tier: Mapped[str] = mapped_column(String(50), default=SubscriptionTier.FREE.value)
+    status: Mapped[str] = mapped_column(String(20), default=SubscriptionStatus.ACTIVE.value)
     razorpay_subscription_id: Mapped[str] = mapped_column(String(255), nullable=True, index=True)
     razorpay_customer_id: Mapped[str] = mapped_column(String(255), nullable=True)
     current_period_start: Mapped[datetime] = mapped_column(DateTime, nullable=True)
@@ -56,7 +56,7 @@ class Payment(Base):
     razorpay_order_id: Mapped[str] = mapped_column(String(255), nullable=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), default="USD")
-    status: Mapped[PaymentStatus] = mapped_column(SAEnum(PaymentStatus), default=PaymentStatus.PENDING)
+    status: Mapped[str] = mapped_column(String(20), default=PaymentStatus.PENDING.value)
     payment_type: Mapped[str] = mapped_column(String(50), nullable=False)
     description: Mapped[str] = mapped_column(String(500), nullable=True)
     metadata_json: Mapped[str] = mapped_column(Text, nullable=True)
@@ -70,7 +70,7 @@ class ApiKey(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     key: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    tier: Mapped[SubscriptionTier] = mapped_column(SAEnum(SubscriptionTier), default=SubscriptionTier.FREE)
+    tier: Mapped[str] = mapped_column(String(50), default=SubscriptionTier.FREE.value)
     requests_count: Mapped[int] = mapped_column(Integer, default=0)
     daily_limit: Mapped[int] = mapped_column(Integer, default=50)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

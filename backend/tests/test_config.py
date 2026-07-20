@@ -4,12 +4,11 @@ from unittest.mock import patch, MagicMock
 
 class TestSettings:
     def test_settings_load(self):
-        with patch.dict("os.environ", {"SECRET_KEY": "test-key", "ENVIRONMENT": "development"}):
-            from app.config import Settings
-            s = Settings(secret_key="test-key")
-            assert s.secret_key == "test-key"
-            assert s.environment == "development"
-            assert s.download_dir == "/tmp/downloads"
+        from app.config import Settings
+        s = Settings(secret_key="test-key", environment="development")
+        assert s.secret_key == "test-key"
+        assert s.environment == "development"
+        assert s.download_dir == "/tmp/downloads"
 
     def test_settings_defaults(self):
         with patch.dict("os.environ", {"SECRET_KEY": "test"}):

@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import time
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -21,6 +22,8 @@ from app.utils.helpers import is_valid_url, detect_platform
 from app.config import get_settings
 
 from app.utils.helpers import generate_task_id
+
+RECENT_DOWNLOADS: dict[str, float] = {}
 
 router = APIRouter(prefix="/download", tags=["download"])
 settings = get_settings()
@@ -180,6 +183,10 @@ async def start_download(
             user.download_credits -= 1
     await db.commit()
 
+    if not user:
+        download_key = f"{ip_address}:{os.path.basename(final_result.file_path)}"
+        RECENT_DOWNLOADS[download_key] = time.time()
+
     audit_logger.download(
         user_id=str(user.id) if user else None,
         url=data.url,
@@ -261,8 +268,7 @@ async def serve_file(
     db: AsyncSession = Depends(get_db),
 ):
     user = await get_user_from_request(request, db)
-    if not user:
-        raise HTTPException(status_code=401, detail="Authentication required")
+    ip_address = request.client.host if request.client else "unknown"
 
     safe_name = os.path.basename(filename)
     resolved_path = os.path.realpath(os.path.join(settings.download_dir, safe_name))
@@ -272,6 +278,14 @@ async def serve_file(
 
     if not os.path.exists(resolved_path):
         raise HTTPException(status_code=404, detail="File not found or expired")
+
+    if not user:
+        download_key = f"{ip_address}:{safe_name}"
+        if download_key not in RECENT_DOWNLOADS:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        if time.time() - RECENT_DOWNLOADS[download_key] > 3600:
+            del RECENT_DOWNLOADS[download_key]
+            raise HTTPException(status_code=401, detail="Download link expired")
 
     media_type = "application/octet-stream"
     if safe_name.endswith(".mp4"):
@@ -284,7 +298,7 @@ async def serve_file(
         media_type = "video/3gpp"
 
     return FileResponse(
-        path=file_path,
+        path=resolved_path,
         filename=safe_name,
         media_type=media_type,
         headers={"Content-Disposition": f'attachment; filename="{safe_name}"'},

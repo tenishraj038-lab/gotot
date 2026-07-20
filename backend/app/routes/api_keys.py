@@ -22,7 +22,7 @@ async def create_new_api_key(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    if user.role == SubscriptionTier.FREE:
+    if user.role == SubscriptionTier.FREE.value:
         existing = await db.execute(
             select(ApiKey).where(ApiKey.user_id == user.id, ApiKey.is_active == True)
         )
@@ -32,7 +32,7 @@ async def create_new_api_key(
                 detail="Free users can only create 2 API keys. Upgrade to Pro for more.",
             )
 
-    api_key, raw_key = await create_api_key(db, user.id, data.name, user.role)
+    api_key, raw_key = await create_api_key(db, user.id, data.name, SubscriptionTier(user.role))
     return {
         "id": str(api_key.id),
         "name": api_key.name,

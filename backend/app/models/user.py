@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 import json
-from sqlalchemy import String, DateTime, Boolean, Text, Integer, Enum as SAEnum, BigInteger, TypeDecorator
+from sqlalchemy import String, DateTime, Boolean, Text, Integer, BigInteger, TypeDecorator
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
 
@@ -27,7 +27,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     username: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[SubscriptionTier] = mapped_column(SAEnum(SubscriptionTier), default=SubscriptionTier.FREE)
+    role: Mapped[str] = mapped_column(String(50), default=SubscriptionTier.FREE.value)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)

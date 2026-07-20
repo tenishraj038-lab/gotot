@@ -111,7 +111,7 @@ async def get_subscription_status(
     plan = PLANS.get(user.role, {})
     return {
         "tier": user.role.value if isinstance(user.role, SubscriptionTier) else user.role,
-        "is_active": sub is not None or user.role != SubscriptionTier.FREE,
+        "is_active": sub is not None or user.role != SubscriptionTier.FREE.value,
         "current_period_end": sub.current_period_end.isoformat() if sub else None,
         "features": plan.get("features", {}),
         "daily_downloads": plan.get("daily_downloads", 5),
