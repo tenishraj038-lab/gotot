@@ -1,68 +1,64 @@
 services:
   - type: web
     name: gotot-api
-    env: docker
+    env: python
     region: oregon
     plan: free
     branch: main
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 2
     healthCheckPath: /health
-    dockerfilePath: ./backend/Dockerfile
     envVars:
-      - key: SECRET_KEY
-        sync: false
-      - key: DATABASE_URL
-        sync: false
-      - key: REDIS_URL
-        sync: false
       - key: ENVIRONMENT
         value: production
+      - key: SECRET_KEY
+        value: "98110005c95b01dbc201b0c2e24ffbf7628b22787706329e27b56ededb85aca3"
       - key: LOG_LEVEL
         value: info
       - key: ALLOWED_ORIGINS
-        value: https://gotot.vercel.app
+        value: "https://gotot.pages.dev,https://gotot-api.onrender.com"
       - key: FRONTEND_URL
-        value: https://gotot.vercel.app
-      - key: RAZORPAY_KEY_ID
-        sync: false
-      - key: RAZORPAY_KEY_SECRET
-        sync: false
-      - key: RAZORPAY_WEBHOOK_SECRET
-        sync: false
-      - key: RAZORPAY_PRO_PLAN_ID
-        sync: false
-      - key: RAZORPAY_UNLIMITED_PLAN_ID
-        sync: false
-      - key: SENTRY_DSN
-        sync: false
-      - key: SMTP_HOST
-        sync: false
-      - key: SMTP_PORT
-        value: "587"
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASSWORD
-        sync: false
-      - key: SMTP_FROM_EMAIL
-        value: noreply@gotot.app
-      - key: ADMIN_EMAIL
-        value: admin@gotot.app
-      - key: GOOGLE_CLIENT_ID
-        sync: false
-      - key: GOOGLE_CLIENT_SECRET
-        sync: false
-      - key: GOOGLE_REDIRECT_URI
-        sync: false
-      - key: CURRENCY
-        value: USD
+        value: "https://gotot.pages.dev"
       - key: RATE_LIMIT_PER_MINUTE
-        value: "100"
+        value: "60"
       - key: DOWNLOAD_TIMEOUT
         value: "300"
-      - key: INFO_TIMEOUT
-        value: "30"
       - key: CACHE_TTL
         value: "3600"
       - key: FILE_RETENTION_HOURS
         value: "1"
       - key: MAX_FILE_SIZE_MB
         value: "500"
+      - key: CURRENCY
+        value: USD
+      - key: SMTP_FROM_EMAIL
+        value: noreply@gotot.app
+      - key: ADMIN_EMAIL
+        value: admin@gotot.app
+      - key: SMTP_PORT
+        value: "587"
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
