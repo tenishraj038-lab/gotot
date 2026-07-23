@@ -98,13 +98,13 @@ X-API-Key: gt_abc123...`}</pre>
         <pre className="bg-gray-900 text-gray-100 p-4 rounded-xl text-sm overflow-x-auto">{`POST /download/info
 Authorization: Bearer <token>
 {
-  "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+  "url": "https://www.tiktok.com/@example/video/123456789"
 }
 
 Response:
 {
-  "title": "Rick Astley - Never Gonna Give You Up",
-  "platform": "youtube",
+  "title": "Example TikTok Video",
+  "platform": "tiktok",
   "duration": 212,
   "thumbnail": "https://i.ytimg.com/vi/...",
   "formats": [...],
@@ -115,7 +115,7 @@ Response:
         <pre className="bg-gray-900 text-gray-100 p-4 rounded-xl text-sm overflow-x-auto">{`POST /download/start
 Authorization: Bearer <token>
 {
-  "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "url": "https://www.tiktok.com/@example/video/123456789",
   "format_id": "22",
   "as_mp3": false
 }`}</pre>
@@ -195,7 +195,7 @@ Authorization: Bearer <token>
 curl -X POST https://gotot.app/api/download/info \\
   -H "Authorization: Bearer $TOKEN" \\
   -H "Content-Type: application/json" \\
-  -d '{"url":"https://youtube.com/watch?v=..."}'`}</pre>
+  -d '{"url":"https://tiktok.com/@example/video/..."}'`}</pre>
         </div>
 
         <div>
@@ -210,7 +210,7 @@ headers = {"Authorization": f"Bearer {TOKEN}"}
 # Get video info
 resp = requests.post(
     f"{API}/download/info",
-    json={"url": "https://youtube.com/watch?v=..."},
+    json={"url": "https://tiktok.com/@example/video/..."},
     headers=headers,
 )
 data = resp.json()

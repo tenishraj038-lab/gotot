@@ -16,11 +16,15 @@ class JSONLogMiddleware(BaseHTTPMiddleware):
         self.logger = logging.getLogger("gotot.http")
 
     async def dispatch(self, request: Request, call_next):
-        request_id = str(uuid.uuid4())[:8]
-        start_time = time.time()
+        if not hasattr(request.state, "request_id") or not request.state.request_id:
+            request_id = str(uuid.uuid4())[:8]
+            request.state.request_id = request_id
+        else:
+            request_id = request.state.request_id
 
-        request.state.request_id = request_id
-        request.state.start_time = start_time
+        if not hasattr(request.state, "start_time") or not request.state.start_time:
+            request.state.start_time = time.time()
+        start_time = request.state.start_time
 
         response: Response = await call_next(request)
 

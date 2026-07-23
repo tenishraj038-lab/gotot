@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "GoTot Blog - Video Downloading Tips & Guides",
-  description: "Learn how to download videos from YouTube, TikTok, Instagram, and more. Tips, tricks, and guides.",
+  description: "Learn how to download videos from TikTok, Instagram, and more. Tips, tricks, and guides.",
 };
 
 const posts = [
@@ -24,9 +24,9 @@ const posts = [
     category: "Tutorial",
   },
   {
-    slug: "youtube-vs-tiktok-downloader",
-    title: "YouTube vs TikTok Downloader: Which One Do You Need?",
-    excerpt: "Compare YouTube and TikTok downloaders. Features, quality, formats, and which platform fits your needs.",
+    slug: "tiktok-vs-instagram-downloader",
+    title: "TikTok vs Instagram Downloader: Which One Do You Need?",
+    excerpt: "Compare TikTok and Instagram downloaders. Features, quality, formats, and which platform fits your needs.",
     date: "2025-06-05",
     readTime: "6 min read",
     category: "Comparison",

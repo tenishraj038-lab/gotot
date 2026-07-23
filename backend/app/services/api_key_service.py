@@ -58,6 +58,8 @@ async def validate_api_key(db: AsyncSession, raw_key: str) -> Optional[ApiKey]:
         return None
     if api_key.expires_at and api_key.expires_at < datetime.utcnow():
         return None
+    if api_key.requests_count >= api_key.daily_limit:
+        return None
     api_key.requests_count += 1
     api_key.last_used_at = datetime.utcnow()
     await db.commit()

@@ -19,7 +19,12 @@ CSRF_EXEMPT_PATHS = {
     "/auth/register",
     "/auth/login",
     "/auth/refresh",
+    "/auth/forgot-password",
+    "/auth/reset-password",
+    "/auth/verify-email",
+    "/auth/google/login",
     "/api-keys/create",
+    "/payment/webhook",
 }
 
 
@@ -30,28 +35,31 @@ class CSRFMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if request.method in ("GET", "HEAD", "OPTIONS"):
             response = await call_next(request)
-            token = secrets.token_hex(32)
-            response.set_cookie(
-                key="csrf_token",
-                value=token,
-                httponly=True,
-                samesite="lax",
-                secure=settings.environment == "production",
-                max_age=3600,
-            )
+            if not request.cookies.get(settings.csrf_cookie_name):
+                token = secrets.token_hex(32)
+                response.set_cookie(
+                    key=settings.csrf_cookie_name,
+                    value=token,
+                    httponly=settings.csrf_cookie_httponly,
+                    samesite=settings.csrf_cookie_samesite,
+                    secure=settings.csrf_cookie_secure and settings.environment == "production",
+                    max_age=3600,
+                )
             return response
 
         if request.url.path in CSRF_EXEMPT_PATHS:
             response = await call_next(request)
             return response
 
-        csrf_cookie = request.cookies.get("csrf_token")
+        csrf_cookie = request.cookies.get(settings.csrf_cookie_name)
         csrf_header = request.headers.get("X-CSRF-Token")
 
         auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer ") and len(auth_header) > 20:
-            response = await call_next(request)
-            return response
+        if auth_header.startswith("Bearer "):
+            token = auth_header[len("Bearer "):]
+            if token.count(".") == 2 and len(token) > 20:
+                response = await call_next(request)
+                return response
 
         api_key = request.headers.get("X-API-Key", "")
         if api_key and len(api_key) > 16:
@@ -73,3 +81,4 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
         response = await call_next(request)
         return response
+

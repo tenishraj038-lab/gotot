@@ -9,7 +9,7 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from app.models.database import Base
-from app.models import user, monetization
+from app.models import user, monetization, download, audit, feature_flags, notification
 
 config = context.config
 if config.config_file_name is not None:

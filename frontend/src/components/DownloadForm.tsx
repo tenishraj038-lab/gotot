@@ -5,9 +5,9 @@ import { motion } from "framer-motion";
 import { Search, Link, Loader2, Youtube, Music, Video, Twitter, Facebook, Globe, Clapperboard, Tv, Briefcase, Pin, PlayCircle } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { api } from "@/lib/api";
+import TermsModal from "./TermsModal";
 
 const PLATFORM_ICONS: Record<string, { icon: React.ElementType; color: string }> = {
-  youtube: { icon: Youtube, color: "text-red-500" },
   tiktok: { icon: Music, color: "text-pink-500" },
   instagram: { icon: Video, color: "text-purple-500" },
   twitter: { icon: Twitter, color: "text-sky-500" },
@@ -21,7 +21,6 @@ const PLATFORM_ICONS: Record<string, { icon: React.ElementType; color: string }>
 };
 
 const PLATFORM_PATTERNS: Record<string, RegExp[]> = {
-  youtube: [/youtube\.com/, /youtu\.be/],
   tiktok: [/tiktok\.com/, /vm\.tiktok\.com/],
   instagram: [/instagram\.com/],
   twitter: [/twitter\.com/, /x\.com/],
@@ -44,7 +43,6 @@ function detectPlatformFromUrl(url: string): string | null {
 }
 
 const allPlatforms = [
-  { name: "YouTube", icon: Youtube, color: "text-red-500" },
   { name: "TikTok", icon: Music, color: "text-pink-500" },
   { name: "Instagram", icon: Video, color: "text-purple-500" },
   { name: "Twitter/X", icon: Twitter, color: "text-sky-500" },
@@ -58,13 +56,17 @@ const allPlatforms = [
 ];
 
 export default function DownloadForm() {
-  const { url, setUrl, isLoading, setIsLoading, setVideoInfo, setError, addRecentUrl, detectedPlatform, setDetectedPlatform, setPlaylistEntries } = useStore();
+  const { url, setUrl, isLoading, setIsLoading, setVideoInfo, setError, addRecentUrl, detectedPlatform, setDetectedPlatform, setPlaylistEntries, termsAccepted, setTermsModalOpen, setFfmpegAvailable } = useStore();
   const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
     const platform = detectPlatformFromUrl(url);
     setDetectedPlatform(platform);
   }, [url, setDetectedPlatform]);
+
+  useEffect(() => {
+    api.getFFmpegStatus().then(s => setFfmpegAvailable(s.available)).catch(() => {});
+  }, [setFfmpegAvailable]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,10 +75,15 @@ export default function DownloadForm() {
       return;
     }
 
-    setIsLoading(true);
+    if (!termsAccepted) {
+      setTermsModalOpen(true);
+      return;
+    }
+
+    useStore.setState({ isLoading: true, videoInfo: null, downloadResult: null, error: null, playlistEntries: [] });
     try {
       const info = await api.getVideoInfo(url.trim());
-      setVideoInfo(info);
+      useStore.setState({ videoInfo: info, isLoading: false, error: null });
       addRecentUrl(url.trim());
       if (info.is_playlist) {
         try {
@@ -88,7 +95,19 @@ export default function DownloadForm() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to get video info");
+      setIsLoading(false);
     }
+  };
+
+  const handleTermsAccepted = () => {
+    useStore.getState().setTermsAccepted(true);
+    setTermsModalOpen(false);
+    handleSubmit(new Event("submit") as unknown as React.FormEvent);
+  };
+
+  const handleTermsDeclined = () => {
+    setTermsModalOpen(false);
+    setError("You must accept the Terms of Service to use GoTot.");
   };
 
   const DetectedIcon = detectedPlatform ? PLATFORM_ICONS[detectedPlatform]?.icon : null;
@@ -175,6 +194,11 @@ export default function DownloadForm() {
           </div>
         ))}
       </motion.div>
+      <TermsModal
+        isOpen={useStore((s) => s.termsModalOpen)}
+        onAccept={handleTermsAccepted}
+        onDecline={handleTermsDeclined}
+      />
     </div>
   );
 }

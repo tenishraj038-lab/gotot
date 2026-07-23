@@ -38,6 +38,13 @@ export function getAuthToken() {
   return authToken;
 }
 
+/** Read CSRF token from cookie if present */
+function getCsrfToken(): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+  return match ? match[1] : null;
+}
+
 async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const { method = "GET", headers = {}, body } = options;
 
@@ -51,6 +58,14 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
 
   if (authToken) {
     config.headers = { ...config.headers, Authorization: `Bearer ${authToken}` };
+  }
+
+  // Add CSRF token for mutating requests that don't use Bearer auth
+  if (!authToken && method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
+    const csrf = getCsrfToken();
+    if (csrf) {
+      config.headers = { ...config.headers, "X-CSRF-Token": csrf };
+    }
   }
 
   if (body) {
@@ -71,8 +86,12 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
       config.headers = { ...config.headers, Authorization: `Bearer ${data.access_token}` };
       const retryResponse = await fetch(`${API_BASE}${endpoint}`, config);
       if (!retryResponse.ok) {
-        const error = await retryResponse.json().catch(() => ({ detail: "Request failed" }));
-        throw new Error(error.detail || `HTTP ${retryResponse.status}`);
+        const body = await retryResponse.json().catch(() => ({}));
+        const detail = body.detail;
+        if (Array.isArray(detail)) {
+          throw new Error(detail.map((e) => e.msg || String(e)).join("; "));
+        }
+        throw new Error(detail || `HTTP ${retryResponse.status}`);
       }
       return retryResponse.json();
     }
@@ -81,8 +100,15 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Request failed" }));
-    throw new Error(error.detail || `HTTP ${response.status}`);
+    const text = await response.text();
+    console.error(`[API] ${response.status} ${response.statusText} for ${endpoint}:`, text);
+    let body;
+    try { body = JSON.parse(text); } catch { body = { detail: text }; }
+    const detail = body.detail;
+    if (Array.isArray(detail)) {
+      throw new Error(detail.map((e) => e.msg || String(e)).join("; "));
+    }
+    throw new Error(detail || `HTTP ${response.status}`);
   }
 
   return response.json();
@@ -105,6 +131,7 @@ export interface FormatInfo {
   has_video?: boolean;
   has_audio?: boolean;
   type?: "video" | "video_only" | "audio";
+  needs_audio?: boolean;
 }
 
 export interface VideoInfo {
@@ -117,18 +144,50 @@ export interface VideoInfo {
   is_playlist?: boolean;
   playlist_count?: number;
   requires_payment?: boolean;
+  metadata?: Record<string, unknown>;
+  description?: string;
+  uploader?: string;
+  upload_date?: string;
+  view_count?: number;
+  like_count?: number;
+  tags?: string[];
+  subtitles?: Array<{ language: string; count: number }>;
+  thumbnails?: Array<{ url: string; width: number; height: number }>;
+  chapters?: Array<{ title: string; start: number; end: number }>;
+  ffmpeg_available?: boolean;
 }
 
 export interface DownloadResult {
+  download_id?: string;
+  task_id?: string;
   file_name: string;
   file_size: number;
   format: string;
   download_url: string;
   title?: string;
   thumbnail?: string;
+  duration?: number;
+  resolution?: string;
+  codec?: string;
+  bitrate?: number;
   require_payment?: boolean;
   require_ad?: boolean;
   pay_per_download?: boolean;
+  expires_in?: number;
+}
+
+export interface FFmpegStatus {
+  available: boolean;
+  ffmpeg_path: string | null;
+  ffprobe_path: string | null;
+  merge_supported: boolean;
+  validation_supported: boolean;
+  installation_instructions: {
+    installed: boolean;
+    path: string | null;
+    instructions: string;
+    platform: string;
+  };
 }
 
 export interface UserInfo {
@@ -242,6 +301,27 @@ export const api = {
       body: { email, username, password },
     }),
 
+  logout: () =>
+    request<{ status: string }>("/auth/logout", { method: "POST" }),
+
+  verifyEmail: (token: string) =>
+    request<{ status: string }>("/auth/verify-email", {
+      method: "POST",
+      body: { token },
+    }),
+
+  forgotPassword: (email: string) =>
+    request<{ status: string }>("/auth/forgot-password", {
+      method: "POST",
+      body: { email },
+    }),
+
+  resetPassword: (token: string, newPassword: string) =>
+    request<{ status: string }>("/auth/reset-password", {
+      method: "POST",
+      body: { token, new_password: newPassword },
+    }),
+
   getSubscriptionStatus: () =>
     request<SubscriptionStatus>("/subscription/status"),
 
@@ -340,15 +420,19 @@ export const api = {
       body: { current_password: currentPassword, new_password: newPassword },
     }),
 
-  getAdminUsers: (skip = 0, limit = 50) =>
-    request<Array<{ id: string; email: string; username: string; role: string; is_active: boolean; downloads_today: number; created_at: string }>>(
+  getAdminUsers: async (skip = 0, limit = 50) => {
+    const res = await request<{ users: Array<{ id: string; email: string; username: string; role: string; is_admin: boolean; is_active: boolean; downloads_today: number; is_verified: boolean; total_downloads: number; created_at: string }>; total: number }>(
       `/admin/users?skip=${skip}&limit=${limit}`
-    ),
+    );
+    return res.users;
+  },
 
-  getAdminSubscriptions: (skip = 0, limit = 50) =>
-    request<Array<{ id: string; user_id: string; plan_id: string; status: string; current_period_start: string | null; current_period_end: string | null }>>(
+  getAdminSubscriptions: async (skip = 0, limit = 50) => {
+    const res = await request<Array<{ id: string; user_id: string; plan_id: string; status: string; current_period_start: string | null; current_period_end: string | null }>>(
       `/admin/subscriptions?skip=${skip}&limit=${limit}`
-    ),
+    );
+    return res;
+  },
 
   toggleUserBan: (userId: string) =>
     request<{ id: string; is_active: boolean }>(`/admin/users/${userId}/toggle-ban`, { method: "POST" }),
@@ -427,4 +511,47 @@ export const api = {
       method: "POST",
       body: { url },
     }),
+
+  getFFmpegStatus: () =>
+    request<FFmpegStatus>("/download/ffmpeg-status"),
+
+  cancelDownload: (taskId: string) =>
+    request<{ status: string; task_id: string }>("/download/cancel", {
+      method: "POST",
+      body: { task_id: taskId },
+    }),
+
+  importCookies: async (browser: string) => {
+    const token = getAuthToken();
+    const formData = new URLSearchParams();
+    formData.append("browser", browser);
+    const res = await fetch(`${API_BASE}/download/cookies/import`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData.toString(),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
+      throw new Error(data.detail || `HTTP ${res.status}`);
+    }
+    return res.json();
+  },
+
+  getCookieStatus: () =>
+    request<{ authenticated: boolean; cookies_active: boolean; cookie_id: string | null; supported_browsers: string[] }>("/download/cookies/status"),
+
+  getPlatforms: () =>
+    request<{ platforms: Array<{ name: string; display_name: string; color: string; supports_playlist: boolean; supports_subtitles: boolean; supports_audio: boolean; requires_auth: boolean; auth_hint: string | null }>; total: number }>("/download/platforms"),
+
+  validateUrl: (url: string) =>
+    request<{ valid: boolean; platform: string; display_name: string; requires_auth: boolean; auth_hint: string | null; ffmpeg_available: boolean }>("/download/validate", { method: "POST", body: { url } }),
+
+  getSubtitles: (url: string) =>
+    request<{ subtitles: Array<{ language: string; ext: string; url: string; name: string }>; count: number }>("/download/subtitles", { method: "POST", body: { url } }),
+
+  getActiveAnnouncement: () =>
+    request<{ id: string; message: string; type: string } | null>("/announcements/active"),
 };

@@ -10,7 +10,6 @@ import AffiliateSection from "@/components/AffiliateSection";
 import RecentDownloads from "@/components/RecentDownloads";
 
 const platforms = [
-  { name: "YouTube", href: "/download/youtube" },
   { name: "TikTok", href: "/download/tiktok" },
   { name: "Instagram", href: "/download/instagram" },
   { name: "Twitter/X", href: "/download/twitter" },

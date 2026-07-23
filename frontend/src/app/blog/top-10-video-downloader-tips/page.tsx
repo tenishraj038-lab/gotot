@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Top 10 Video Downloader Tips for 2025 - GoTot Blog",
-  description: "Master video downloading with these 10 pro tips. Download from YouTube, TikTok, Instagram in the best quality.",
+  description: "Master video downloading with these 10 pro tips. Download from TikTok, Instagram, and more in the best quality.",
 };
 
 export default function Post() {
@@ -23,7 +23,7 @@ export default function Post() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-8">2. Use MP3 for Audio-Only Content</h2>
           <p>For podcasts, music, or any audio-only content, use the MP3 conversion feature. You get smaller file sizes without losing audio quality.</p>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-8">3. Batch Download Playlists</h2>
-          <p>With GoTot Pro, you can download entire playlists at once. Perfect for saving a full YouTube playlist or a series of TikTok videos.</p>
+          <p>With GoTot Pro, you can download entire playlists at once. Perfect for saving a full playlist or a series of TikTok videos.</p>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-8">4. Check File Sizes Before Downloading</h2>
           <p>Always check the file size before starting a download. 4K videos can be several GB. GoTot displays file sizes for every format.</p>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-8">5. Use the Browser Extension</h2>

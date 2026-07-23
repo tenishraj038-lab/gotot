@@ -44,7 +44,7 @@ class Subscription(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    user = relationship("User", backref="subscription")
+    user = relationship("User", back_populates="subscription")
 
 
 class Payment(Base):
@@ -78,7 +78,7 @@ class ApiKey(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
 
-    user = relationship("User", backref="api_keys")
+    user = relationship("User", back_populates="api_keys")
 
 
 class Referral(Base):

@@ -198,21 +198,32 @@ async def handle_payment_captured(payload: dict) -> dict:
     user_id = notes.get("user_id")
     payment_type = notes.get("type", "one_time")
 
-    payment_record = Payment(
-        user_id=user_id if user_id and user_id != "anonymous" else None,
-        razorpay_payment_id=payment_id,
-        razorpay_order_id=order_id,
-        amount=amount,
-        currency=currency,
-        status=PaymentStatus.COMPLETED,
-        payment_type=payment_type,
-        metadata_json=json.dumps(notes),
-    )
-
     from app.models.database import async_session
     async with async_session() as db:
+        # Idempotency check: skip duplicate webhook
+        if payment_id:
+            from app.models.monetization import Payment
+            existing = await db.execute(
+                select(Payment).where(Payment.razorpay_payment_id == payment_id)
+            )
+            if existing.scalar_one_or_none():
+                logger.info(f"Duplicate webhook for payment {payment_id}, skipping")
+                return {"status": "ok"}
+
+        payment_record = Payment(
+            user_id=user_id if user_id and user_id != "anonymous" else None,
+            razorpay_payment_id=payment_id,
+            razorpay_order_id=order_id,
+            amount=amount,
+            currency=currency,
+            status=PaymentStatus.COMPLETED,
+            payment_type=payment_type,
+            metadata_json=json.dumps(notes),
+        )
+
         db.add(payment_record)
         if user_id and user_id != "anonymous":
+            from app.models.user import User
             result = await db.execute(select(User).where(User.id == user_id))
             user = result.scalar_one_or_none()
             if user and payment_type == "pay_per_download":

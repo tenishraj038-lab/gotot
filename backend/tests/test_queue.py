@@ -16,7 +16,7 @@ class TestQueueHelpers:
         assert len(ids) == 100
 
     def test_is_valid_url_https(self):
-        assert is_valid_url("https://www.youtube.com/watch?v=test") is True
+        assert is_valid_url("https://www.tiktok.com/@user/video/abc123") is True
 
     def test_is_valid_url_http(self):
         assert is_valid_url("http://example.com/video") is True
@@ -27,8 +27,8 @@ class TestQueueHelpers:
         assert is_valid_url("ftp://example.com") is False
 
     def test_detect_platform_returns_string(self):
-        result = detect_platform("https://www.youtube.com/watch?v=test")
-        assert result == "youtube"
+        result = detect_platform("https://www.tiktok.com/@user/video/123456")
+        assert result == "tiktok"
         assert isinstance(result, str)
 
     def test_detect_platform_returns_none(self):

@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.database import get_db
+from slowapi.util import get_remote_address
+from app.middleware.rate_limit import limiter
 
 router = APIRouter(tags=["contact"])
 
@@ -34,6 +36,7 @@ class ContactRequest(BaseModel):
 
 
 @router.post("/contact")
+@limiter.limit("5/minute")
 async def submit_contact(data: ContactRequest, request: Request):
     import logging
     logger = logging.getLogger("gotot.contact")

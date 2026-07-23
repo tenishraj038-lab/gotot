@@ -14,10 +14,23 @@ const nextConfig = {
     minimumCacheTTL: 3600,
   },
   compiler: {
-    removeConsole: process.env.NODE_ENV === "production",
+    removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error", "warn"] } : false,
   },
   experimental: {
     optimizePackageImports: ["lucide-react", "framer-motion"],
+  },
+  async rewrites() {
+    const apiUrl = process.env.BACKEND_API_URL || "http://localhost:8000";
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${apiUrl}/:path*`,
+      },
+      {
+        source: "/ws/:path*",
+        destination: `${apiUrl}/ws/:path*`,
+      },
+    ];
   },
   async headers() {
     return [
@@ -39,6 +52,12 @@ const nextConfig = {
       },
       {
         source: "/icons/(.*)",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
+      {
+        source: "/_next/static/(.*)",
         headers: [
           { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
         ],

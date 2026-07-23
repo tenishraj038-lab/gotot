@@ -1,10 +1,16 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+import uuid
 import bcrypt
 from jose import jwt, JWTError
 from app.config import get_settings
 
 settings = get_settings()
+
+
+def parse_user_id(payload_sub: str) -> uuid.UUID:
+    """Convert JWT sub (string UUID) to uuid.UUID for DB queries."""
+    return uuid.UUID(payload_sub) if payload_sub else None
 
 
 def hash_password(password: str) -> str:

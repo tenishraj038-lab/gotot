@@ -46,13 +46,23 @@ interface DownloadState {
   clearPlaylistSelection: () => void;
   detectedPlatform: string | null;
   setDetectedPlatform: (p: string | null) => void;
+
+  termsModalOpen: boolean;
+  setTermsModalOpen: (open: boolean) => void;
+  termsAccepted: boolean;
+  setTermsAccepted: (accepted: boolean) => void;
+
+  downloadHistory: Array<{ id: string; url: string; title?: string; platform: string; format: string; status: string; file_size: number | null; created_at: string | null }>;
+  setDownloadHistory: (history: Array<{ id: string; url: string; title?: string; platform: string; format: string; status: string; file_size: number | null; created_at: string | null }>) => void;
+  ffmpegAvailable: boolean | null;
+  setFfmpegAvailable: (available: boolean | null) => void;
 }
 
 export const useStore = create<DownloadState>((set, get) => ({
   url: "",
   setUrl: (url) => set({ url }),
   isLoading: false,
-  setIsLoading: (loading) => set({ isLoading: loading, error: null }),
+  setIsLoading: (loading) => set({ isLoading: loading, error: null, downloadResult: null }),
   videoInfo: null,
   setVideoInfo: (info) => set({ videoInfo: info, error: null }),
   downloadResult: null,
@@ -106,4 +116,14 @@ export const useStore = create<DownloadState>((set, get) => ({
 
   detectedPlatform: null,
   setDetectedPlatform: (p) => set({ detectedPlatform: p }),
+
+  termsModalOpen: false,
+  setTermsModalOpen: (open) => set({ termsModalOpen: open }),
+  termsAccepted: typeof window !== "undefined" ? document.cookie.includes("terms_accepted=true") : false,
+  setTermsAccepted: (accepted) => set({ termsAccepted: accepted }),
+
+  downloadHistory: [],
+  setDownloadHistory: (history) => set({ downloadHistory: history }),
+  ffmpegAvailable: null,
+  setFfmpegAvailable: (available) => set({ ffmpegAvailable: available }),
 }));

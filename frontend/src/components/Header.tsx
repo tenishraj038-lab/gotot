@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Moon, Sun, Github, User, LogOut, LayoutDashboard, Menu, X, Globe, Bell } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { loadTokens, clearTokens, getAuthToken } from "@/lib/api";
+import { loadTokens, clearTokens, getAuthToken, api } from "@/lib/api";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import LocaleSwitcher from "./LocaleSwitcher";
@@ -14,14 +13,10 @@ import { useLocale } from "@/lib/i18n";
 function NotificationBell() {
   const [unread, setUnread] = useState(0);
   useEffect(() => {
-    import("@/lib/api").then(({ api, loadTokens }) => {
-      loadTokens();
-      api.getUnreadCount().then((d) => setUnread(d.unread)).catch(() => {});
-    });
+    loadTokens();
+    api.getUnreadCount().then((d) => setUnread(d.unread)).catch(() => {});
     const interval = setInterval(() => {
-      import("@/lib/api").then(({ api }) => {
-        api.getUnreadCount().then((d) => setUnread(d.unread)).catch(() => {});
-      });
+      api.getUnreadCount().then((d) => setUnread(d.unread)).catch(() => {});
     }, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -51,10 +46,8 @@ export default function Header() {
     }
     loadTokens();
     if (getAuthToken()) {
-      import("@/lib/api").then(({ api }) => {
-        api.getMe().then(setUser).catch(() => {});
-        api.getSubscriptionStatus().then(setSubscription).catch(() => {});
-      });
+      api.getMe().then(setUser).catch(() => {});
+      api.getSubscriptionStatus().then(setSubscription).catch(() => {});
     }
     const handleScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", handleScroll, { passive: true });
@@ -111,7 +104,6 @@ export default function Header() {
               </button>
               <div className="absolute top-full left-0 mt-2 w-48 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200/50 dark:border-gray-800/50 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
                 {[
-                  { name: "YouTube", href: "/download/youtube" },
                   { name: "TikTok", href: "/download/tiktok" },
                   { name: "Instagram", href: "/download/instagram" },
                   { name: "Twitter/X", href: "/download/twitter" },
@@ -205,7 +197,6 @@ export default function Header() {
           <div className="md:hidden py-4 border-t border-gray-200/50 dark:border-gray-800/50 space-y-1">
             <Link href="/" className="block px-3 py-2 rounded-xl text-sm hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setMobileMenuOpen(false)}>{t.nav.home}</Link>
             <Link href="/pricing" className="block px-3 py-2 rounded-xl text-sm hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setMobileMenuOpen(false)}>{t.nav.pricing}</Link>
-            <Link href="/download/youtube" className="block px-3 py-2 rounded-xl text-sm hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setMobileMenuOpen(false)}>YouTube</Link>
             <Link href="/download/tiktok" className="block px-3 py-2 rounded-xl text-sm hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setMobileMenuOpen(false)}>TikTok</Link>
             <Link href="/download/instagram" className="block px-3 py-2 rounded-xl text-sm hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setMobileMenuOpen(false)}>Instagram</Link>
             <Link href="/download/twitter" className="block px-3 py-2 rounded-xl text-sm hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setMobileMenuOpen(false)}>Twitter/X</Link>

@@ -8,11 +8,14 @@ from app.services.auth_service import (
     hash_password, verify_password,
     create_access_token, create_refresh_token, decode_token,
     create_email_verification_token, create_password_reset_token,
+    parse_user_id,
 )
 from app.services.audit_log import audit_logger
 from app.services.email_service import send_verify_email, send_password_reset_email
 from app.middleware.rate_limit import limiter
 from slowapi.util import get_remote_address
+from fastapi import Body
+import uuid
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -85,7 +88,7 @@ async def register(request: Request, data: RegisterRequest, db: AsyncSession = D
     await send_verify_email(user.email, user.username, verify_token)
 
     return TokenResponse(
-        access_token=create_access_token({"sub": str(user.id), "role": user.role.value}),
+        access_token=create_access_token({"sub": str(user.id), "role": user.role}),
         refresh_token=create_refresh_token({"sub": str(user.id)}, token_version=user.refresh_token_version),
     )
 
@@ -99,29 +102,33 @@ async def login(request: Request, data: LoginRequest, db: AsyncSession = Depends
 
     if not user or not verify_password(data.password, user.hashed_password):
         audit_logger.login_failed(data.email, ip)
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(status_code=401, detail="Invalid email or password")
 
     if not user.is_active:
         audit_logger.login_failed(data.email, ip)
-        raise HTTPException(status_code=403, detail="Account is deactivated")
+        raise HTTPException(status_code=401, detail="Invalid email or password")
 
     audit_logger.login_success(str(user.id), data.email, ip)
 
     return TokenResponse(
-        access_token=create_access_token({"sub": str(user.id), "role": user.role.value}),
+        access_token=create_access_token({"sub": str(user.id), "role": user.role}),
         refresh_token=create_refresh_token({"sub": str(user.id)}, token_version=user.refresh_token_version),
     )
 
 
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh_token(request: Request, refresh_token: str, db: AsyncSession = Depends(get_db)):
-    payload = decode_token(refresh_token)
+async def refresh_token(request: Request, data: RefreshRequest, db: AsyncSession = Depends(get_db)):
+    payload = decode_token(data.refresh_token)
     if not payload or payload.get("type") != "refresh":
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
     user_id = payload.get("sub")
     token_ver = payload.get("ver", 0)
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(select(User).where(User.id == parse_user_id(user_id)))
     user = result.scalar_one_or_none()
 
     if not user or not user.is_active:
@@ -131,9 +138,10 @@ async def refresh_token(request: Request, refresh_token: str, db: AsyncSession =
         raise HTTPException(status_code=401, detail="Refresh token has been revoked. Please login again.")
 
     user.refresh_token_version += 1
+    await db.commit()
 
     return TokenResponse(
-        access_token=create_access_token({"sub": str(user.id), "role": user.role.value}),
+        access_token=create_access_token({"sub": str(user.id), "role": user.role}),
         refresh_token=create_refresh_token({"sub": str(user.id)}, token_version=user.refresh_token_version),
     )
 
@@ -163,7 +171,7 @@ async def get_me(request: Request, db: AsyncSession = Depends(get_db)):
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    result = await db.execute(select(User).where(User.id == payload.get("sub")))
+    result = await db.execute(select(User).where(User.id == parse_user_id(payload.get("sub"))))
     user = result.scalar_one_or_none()
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found")
@@ -178,7 +186,7 @@ async def get_me(request: Request, db: AsyncSession = Depends(get_db)):
         id=str(user.id),
         email=user.email,
         username=user.username,
-        role=user.role.value if hasattr(user.role, "value") else user.role,
+        role=user.role,
         is_active=user.is_active,
         is_admin=user.is_admin,
         daily_download_limit=user.daily_download_limit,
@@ -209,7 +217,7 @@ async def update_profile(
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    result = await db.execute(select(User).where(User.id == payload.get("sub")))
+    result = await db.execute(select(User).where(User.id == parse_user_id(payload.get("sub"))))
     user = result.scalar_one_or_none()
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found")
@@ -236,7 +244,7 @@ async def update_profile(
         id=str(user.id),
         email=user.email,
         username=user.username,
-        role=user.role.value if hasattr(user.role, "value") else user.role,
+        role=user.role,
         is_active=user.is_active,
         is_admin=user.is_admin,
         daily_download_limit=user.daily_download_limit,
@@ -274,7 +282,7 @@ async def change_password(
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    result = await db.execute(select(User).where(User.id == payload.get("sub")))
+    result = await db.execute(select(User).where(User.id == parse_user_id(payload.get("sub"))))
     user = result.scalar_one_or_none()
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found")
@@ -287,10 +295,10 @@ async def change_password(
     await db.commit()
 
     ip = request.client.host if request.client else "unknown"
-    audit_logger.register(str(user.id), user.email, ip)
+    audit_logger.log("PASSWORD_CHANGE", user_id=str(user.id), email=user.email, ip_address=ip)
 
     return TokenResponse(
-        access_token=create_access_token({"sub": str(user.id), "role": user.role.value}),
+        access_token=create_access_token({"sub": str(user.id), "role": user.role}),
         refresh_token=create_refresh_token({"sub": str(user.id)}, token_version=user.refresh_token_version),
     )
 
@@ -375,3 +383,19 @@ async def reset_password(
     user.refresh_token_version += 1
     await db.commit()
     return {"status": "password_reset"}
+
+
+@router.post("/logout")
+async def logout(request: Request, db: AsyncSession = Depends(get_db)):
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return {"status": "ok"}
+    token = auth_header.split(" ")[1]
+    payload = decode_token(token)
+    if payload and payload.get("sub"):
+        result = await db.execute(select(User).where(User.id == parse_user_id(payload.get("sub"))))
+        user = result.scalar_one_or_none()
+        if user:
+            user.refresh_token_version += 1
+            await db.commit()
+    return {"status": "logged_out"}

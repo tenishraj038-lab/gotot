@@ -11,7 +11,7 @@ export default function PrivacyPage() {
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <h1 className="text-4xl font-bold mb-8">Privacy Policy</h1>
         <div className="prose dark:prose-invert max-w-none space-y-6 text-gray-600 dark:text-gray-400">
-          <p>Last updated: {new Date().toLocaleDateString()}</p>
+          <p>Last updated: July 23, 2026</p>
 
           <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-8">1. Information We Collect</h2>
           <p>We collect minimal information necessary to provide the Service:</p>
@@ -51,9 +51,12 @@ export default function PrivacyPage() {
           </ul>
 
           <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-8">6. Cookies</h2>
-          <p>We use essential cookies for authentication and service functionality. No tracking cookies are used for advertising purposes.</p>
+          <p>We use essential cookies for authentication and service functionality. With your explicit consent, we also use analytics cookies (Google Analytics) to understand how our service is used and improve your experience. You can withdraw consent at any time by clearing your site data.</p>
 
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-8">7. Contact</h2>
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-8">7. Your Rights (GDPR &amp; Similar)</h2>
+          <p>Depending on your jurisdiction, you may have the right to access, correct, delete, or export your personal data. You may also object to or restrict certain processing. To exercise these rights, contact us at privacy@gotot.app. We will respond within 30 days.</p>
+
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-8">8. Contact</h2>
           <p>For privacy inquiries, contact us at privacy@gotot.app.</p>
         </div>
       </div>

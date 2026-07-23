@@ -3,13 +3,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
 from datetime import datetime
+import uuid
 from app.models.database import get_db
 from app.models.user import User
 from app.models.monetization import (
     Subscription, SubscriptionTier, SubscriptionStatus,
     Payment, PaymentStatus,
 )
-from app.services.auth_service import decode_token
+from app.services.auth_service import decode_token, parse_user_id
 from app.services.payment_service import (
     create_subscription_checkout, create_pay_per_download_checkout,
     handle_razorpay_webhook, PLANS,
@@ -29,7 +30,7 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
     payload = decode_token(token)
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid token")
-    result = await db.execute(select(User).where(User.id == payload.get("sub")))
+    result = await db.execute(select(User).where(User.id == parse_user_id(payload.get("sub"))))
     user = result.scalar_one_or_none()
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found")
@@ -70,7 +71,7 @@ async def pay_per_download_route(
             token = auth_header.split(" ")[1]
             payload = decode_token(token)
             if payload:
-                result = await db.execute(select(User).where(User.id == payload.get("sub")))
+                result = await db.execute(select(User).where(User.id == parse_user_id(payload.get("sub"))))
                 user = result.scalar_one_or_none()
         except Exception:
             pass
@@ -110,7 +111,7 @@ async def get_subscription_status(
     sub = result.scalar_one_or_none()
     plan = PLANS.get(user.role, {})
     return {
-        "tier": user.role.value if isinstance(user.role, SubscriptionTier) else user.role,
+        "tier": user.role,
         "is_active": sub is not None or user.role != SubscriptionTier.FREE.value,
         "current_period_end": sub.current_period_end.isoformat() if sub else None,
         "features": plan.get("features", {}),

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Megaphone } from "lucide-react";
+import { api } from "@/lib/api";
 
 interface Announcement {
   id: string;
@@ -16,14 +17,15 @@ export default function NotificationBanner() {
 
   useEffect(() => {
     const stored = sessionStorage.getItem("dismissed_announcement");
-    fetch(`/api/announcements/active`)
-      .then((r) => r.json())
+    api.getActiveAnnouncement()
       .then((data) => {
         if (data && data.id !== stored) {
-          setAnnouncement(data);
+          setAnnouncement(data as Announcement);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        console.warn("[NotificationBanner] Failed to fetch announcement");
+      });
   }, []);
 
   function dismiss() {

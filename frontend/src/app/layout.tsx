@@ -8,6 +8,7 @@ import PaymentModal from "@/components/PaymentModal";
 import PwaRegister from "@/components/PwaRegister";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import NotificationBanner from "@/components/NotificationBanner";
+import CookieConsent from "@/components/CookieConsent";
 import { Toaster } from "react-hot-toast";
 
 export const metadata: Metadata = {
@@ -16,9 +17,9 @@ export const metadata: Metadata = {
     template: "%s | GoTot - Free Video Downloader",
   },
   description:
-    "Download videos from YouTube, TikTok, Instagram, Twitter, Facebook, Reddit, Vimeo, Twitch, Dailymotion, LinkedIn, and Pinterest. Fast, secure, and completely free. No registration required.",
+    "Download videos from TikTok, Instagram, Twitter, Facebook, Reddit, Vimeo, Twitch, Dailymotion, LinkedIn, and Pinterest. Fast, secure, and completely free. No registration required.",
   keywords: [
-    "video downloader", "youtube downloader", "tiktok downloader",
+    "video downloader", "tiktok downloader",
     "instagram downloader", "twitter downloader", "facebook downloader",
     "free video downloader", "online video downloader", "download videos free",
     "reddit downloader", "vimeo downloader", "twitch downloader",
@@ -80,26 +81,19 @@ const jsonLd = {
       name: "GoTot",
       applicationCategory: "Multimedia",
       operatingSystem: "Web",
-      description: "Download videos from YouTube, TikTok, Instagram, Twitter, Facebook, Reddit, Vimeo, Twitch, Dailymotion, LinkedIn, and Pinterest. Free, fast, and secure.",
+      description: "Download videos from TikTok, Instagram, Twitter, Facebook, Reddit, Vimeo, Twitch, Dailymotion, LinkedIn, and Pinterest. Free, fast, and secure.",
       url: "https://gotot.app",
       offers: [
         { "@type": "Offer", price: "0", priceCurrency: "USD", description: "Free unlimited downloads" },
         { "@type": "Offer", price: "4.99", priceCurrency: "USD", description: "Pro plan - Priority processing" },
         { "@type": "Offer", price: "9.99", priceCurrency: "USD", description: "Unlimited plan with all features included" },
       ],
-      aggregateRating: {
-        "@type": "AggregateRating",
-        ratingValue: "4.8",
-        ratingCount: "15234",
-        bestRating: "5",
-      },
     },
     {
       "@type": "BreadcrumbList",
       itemListElement: [
         { "@type": "ListItem", position: 1, name: "Home", item: "https://gotot.app" },
-        { "@type": "ListItem", position: 2, name: "YouTube Downloader", item: "https://gotot.app/download/youtube" },
-        { "@type": "ListItem", position: 3, name: "TikTok Downloader", item: "https://gotot.app/download/tiktok" },
+        { "@type": "ListItem", position: 2, name: "TikTok Downloader", item: "https://gotot.app/download/tiktok" },
       ],
     },
   ],
@@ -115,7 +109,11 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
         <link rel="canonical" href="https://gotot.app" />
+        <link rel="alternate" hrefLang="en" href="https://gotot.app" />
+        <link rel="alternate" hrefLang="es" href="https://gotot.app/es" />
+        <link rel="alternate" hrefLang="x-default" href="https://gotot.app" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -135,16 +133,34 @@ export default function RootLayout({
         />
         {process.env.NEXT_PUBLIC_GA_ID && (
           <>
-            <script async src={`https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GA_ID}`} />
             <script
               dangerouslySetInnerHTML={{
                 __html: [
-                  "window.dataLayer = window.dataLayer || [];",
-                  "function gtag(){dataLayer.push(arguments);}",
-                  `gtag('js', new Date());`,
-                  `gtag('config', '${process.env.NEXT_PUBLIC_GA_ID}', {`,
-                  "  page_path: window.location.pathname,",
+                  "window.__gaConsent = function() {",
+                  "  return localStorage.getItem('gotot_cookie_consent') === 'true';",
+                  "};",
+                  "window.addEventListener('cookie-consent-changed', function() {",
+                  "  if (window.__gaConsent()) {",
+                  "    if (!window.__gaLoaded) {",
+                  "      window.__gaLoaded = true;",
+                  `      var s = document.createElement('script');`,
+                  `      s.async = true;`,
+                  `      s.src = 'https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GA_ID}';`,
+                  `      document.head.appendChild(s);`,
+                  "      s.onload = function() {",
+                  "        window.dataLayer = window.dataLayer || [];",
+                  "        function gtag(){dataLayer.push(arguments);}",
+                  `        gtag('js', new Date());`,
+                  `        gtag('config', '${process.env.NEXT_PUBLIC_GA_ID}', {`,
+                  "          page_path: window.location.pathname,",
+                  "        });",
+                  "      };",
+                  "    }",
+                  "  }",
                   "});",
+                  "if (window.__gaConsent()) {",
+                  "  window.dispatchEvent(new Event('cookie-consent-changed'));",
+                  "}",
                 ].join("\n"),
               }}
             />
@@ -169,6 +185,7 @@ export default function RootLayout({
         <AdModal />
         <PaymentModal />
         <PwaRegister />
+        <CookieConsent />
       </body>
     </html>
   );

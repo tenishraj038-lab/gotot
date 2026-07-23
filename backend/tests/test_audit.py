@@ -31,9 +31,9 @@ class TestAuditLogger:
     def test_download(self, caplog):
         caplog.clear()
         with caplog.at_level("INFO"):
-            self.logger.download("user-1", "https://example.com/video", "youtube", "127.0.0.1")
+            self.logger.download("user-1", "https://example.com/video", "tiktok", "127.0.0.1")
         assert "DOWNLOAD" in caplog.text
-        assert "youtube" in caplog.text
+        assert "tiktok" in caplog.text
 
     def test_admin_action(self, caplog):
         caplog.clear()

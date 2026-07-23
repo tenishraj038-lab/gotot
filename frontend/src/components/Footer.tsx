@@ -24,7 +24,6 @@ export default function Footer() {
           <div>
             <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">{t.footer.downloaders}</h3>
             <ul className="space-y-2">
-              <li><Link href="/download/youtube" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">YouTube</Link></li>
               <li><Link href="/download/tiktok" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">TikTok</Link></li>
               <li><Link href="/download/instagram" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">Instagram</Link></li>
               <li><Link href="/download/twitter" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">Twitter / X</Link></li>
@@ -54,6 +53,8 @@ export default function Footer() {
               <li><Link href="/docs" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">API Docs</Link></li>
               <li><Link href="/privacy" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">Privacy</Link></li>
               <li><Link href="/terms" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">Terms</Link></li>
+              <li><Link href="/copyright" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">Copyright</Link></li>
+              <li><Link href="/dmca" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">DMCA</Link></li>
             </ul>
           </div>
         </div>

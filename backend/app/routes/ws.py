@@ -32,6 +32,10 @@ class ConnectionManager:
             self.active[task_id].discard(websocket)
             if not self.active[task_id]:
                 del self.active[task_id]
+                # Clean up and cancel pubsub listener
+                task = self._pubsub_connections.pop(task_id, None)
+                if task and not task.done():
+                    task.cancel()
 
     async def send_progress(self, task_id: str, data: dict):
         if task_id in self.active:
@@ -69,6 +73,8 @@ class ConnectionManager:
 
             await pubsub.unsubscribe()
             await r.close()
+        except asyncio.CancelledError:
+            logger.debug(f"Redis pubsub listener cancelled for {task_id}")
         except Exception as e:
             logger.debug(f"Redis pubsub unavailable for {task_id}: {e}")
 

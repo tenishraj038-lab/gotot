@@ -1,84 +1,139 @@
 {
-  "title": "GoTot Production Overview",
-  "uid": "gotot-overview",
-  "version": 1,
-  "timezone": "utc",
-  "editable": false,
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
   "panels": [
     {
-      "title": "Request Rate",
-      "type": "graph",
-      "gridPos": {"x": 0, "y": 0, "w": 8, "h": 8},
-      "targets": [{"expr": "rate(http_requests_total[5m])", "legendFormat": "{{status}}"}]
-    },
-    {
-      "title": "p95 Latency",
-      "type": "graph",
-      "gridPos": {"x": 8, "y": 0, "w": 8, "h": 8},
-      "targets": [{"expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))", "legendFormat": "p95"}]
-    },
-    {
-      "title": "Error Rate",
-      "type": "graph",
-      "gridPos": {"x": 16, "y": 0, "w": 8, "h": 8},
-      "targets": [{"expr": "rate(http_requests_total{status=~\"5..\"}[5m]) / rate(http_requests_total[5m])", "legendFormat": "error %"}]
-    },
-    {
-      "title": "Active Users",
-      "type": "stat",
-      "gridPos": {"x": 0, "y": 8, "w": 4, "h": 6},
-      "targets": [{"expr": "gotot_active_users", "legendFormat": "users"}]
-    },
-    {
-      "title": "Downloads Today",
-      "type": "stat",
-      "gridPos": {"x": 4, "y": 8, "w": 4, "h": 6},
-      "targets": [{"expr": "gotot_downloads_today", "legendFormat": "downloads"}]
-    },
-    {
-      "title": "Revenue (MTD)",
-      "type": "stat",
-      "gridPos": {"x": 8, "y": 8, "w": 4, "h": 6},
-      "targets": [{"expr": "gotot_revenue_mtd", "legendFormat": "revenue"}]
-    },
-    {
-      "title": "Queue Depth",
-      "type": "stat",
-      "gridPos": {"x": 12, "y": 8, "w": 4, "h": 6},
-      "targets": [{"expr": "gotot_queue_pending", "legendFormat": "pending"}]
-    },
-    {
-      "title": "Queue Performance",
-      "type": "graph",
-      "gridPos": {"x": 16, "y": 8, "w": 8, "h": 6},
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": true, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 80 }] },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
-        {"expr": "gotot_queue_pending", "legendFormat": "pending"},
-        {"expr": "gotot_queue_processing", "legendFormat": "processing"}
-      ]
+        { "expr": "rate(gotot_requests_total[5m])", "legendFormat": "{{method}} {{endpoint}} ({{status}})", "refId": "A" }
+      ],
+      "title": "Request Rate (5m avg)",
+      "type": "timeseries"
     },
     {
-      "title": "Downloads by Platform (30d)",
-      "type": "piechart",
-      "gridPos": {"x": 0, "y": 14, "w": 8, "h": 8},
-      "targets": [{"expr": "gotot_downloads_by_platform", "legendFormat": "{{platform}}"}]
-    },
-    {
-      "title": "Premium Conversion",
-      "type": "graph",
-      "gridPos": {"x": 8, "y": 14, "w": 8, "h": 8},
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": true, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "options": { "legend": { "calcs": ["mean", "p90", "p99"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
-        {"expr": "rate(gotot_premium_signups_total[7d])", "legendFormat": "signups"},
-        {"expr": "rate(gotot_cancellations_total[7d])", "legendFormat": "cancellations"}
-      ]
+        { "expr": "histogram_quantile(0.50, rate(gotot_request_latency_seconds_bucket[5m]))", "legendFormat": "p50 {{method}} {{endpoint}}", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, rate(gotot_request_latency_seconds_bucket[5m]))", "legendFormat": "p95 {{method}} {{endpoint}}", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, rate(gotot_request_latency_seconds_bucket[5m]))", "legendFormat": "p99 {{method}} {{endpoint}}", "refId": "C" }
+      ],
+      "title": "Request Latency (5m avg)",
+      "type": "timeseries"
     },
     {
-      "title": "System Resources",
-      "type": "graph",
-      "gridPos": {"x": 16, "y": 14, "w": 8, "h": 8},
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": true, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 80 }] },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 10 },
+      "id": 3,
+      "options": { "legend": { "calcs": ["mean", "sum"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
-        {"expr": "node_memory_usage_percent", "legendFormat": "memory"},
-        {"expr": "node_cpu_usage_percent", "legendFormat": "cpu"}
-      ]
+        { "expr": "rate(gotot_downloads_total[5m])", "legendFormat": "{{platform}} ({{status}})", "refId": "A" }
+      ],
+      "title": "Download Rate by Platform",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 60 }, { "color": "red", "value": 85 }] },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 6, "x": 12, "y": 10 },
+      "id": 4,
+      "options": { "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showThresholdLabels": false, "showThresholdMarkers": true, "text": {} },
+      "targets": [
+        { "expr": "gotot_uptime_seconds", "refId": "A" }
+      ],
+      "title": "Uptime",
+      "type": "gauge"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 6, "x": 18, "y": 10 },
+      "id": 5,
+      "options": { "displayMode": "gradient", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showUnfilled": true, "text": {} },
+      "targets": [
+        { "expr": "rate(gotot_requests_total{status=~\"4..\"}[5m]) / rate(gotot_requests_total[5m]) * 100", "legendFormat": "4xx Error Rate", "refId": "A" },
+        { "expr": "rate(gotot_requests_total{status=~\"5..\"}[5m]) / rate(gotot_requests_total[5m]) * 100", "legendFormat": "5xx Error Rate", "refId": "B" }
+      ],
+      "title": "Error Rate %",
+      "type": "bargauge"
     }
-  ]
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["gotot"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "GoTot Overview",
+  "uid": "gotot-overview",
+  "version": 1
 }

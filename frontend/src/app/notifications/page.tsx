@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { Bell, CheckCheck, Download, AlertTriangle, CreditCard, Users, Shield, Gift, Megaphone, ArrowUp, Loader2 } from "lucide-react";
 import { api, loadTokens } from "@/lib/api";
@@ -52,6 +52,7 @@ export default function NotificationsPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "unread">("all");
+  const fetchId = useRef(0);
 
   useEffect(() => {
     loadTokens();
@@ -65,9 +66,11 @@ export default function NotificationsPage() {
   }, [filter]);
 
   async function fetchNotifications() {
+    const id = ++fetchId.current;
     setLoading(true);
     try {
       const data = await api.getNotifications(0, 50, filter === "unread");
+      if (id !== fetchId.current) return; // stale response
       setNotifications(data.notifications);
       setUnread(data.unread);
       setTotal(data.total);

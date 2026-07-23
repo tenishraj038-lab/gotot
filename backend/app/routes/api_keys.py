@@ -32,7 +32,11 @@ async def create_new_api_key(
                 detail="Free users can only create 2 API keys. Upgrade to Pro for more.",
             )
 
-    api_key, raw_key = await create_api_key(db, user.id, data.name, SubscriptionTier(user.role))
+    try:
+        tier = SubscriptionTier(user.role)
+    except ValueError:
+        tier = SubscriptionTier.FREE
+    api_key, raw_key = await create_api_key(db, user.id, data.name, tier)
     return {
         "id": str(api_key.id),
         "name": api_key.name,
@@ -57,7 +61,7 @@ async def list_api_keys(
             "id": str(k.id),
             "name": k.name,
             "prefix": k.key[:12] + "...",
-            "tier": k.tier.value if isinstance(k.tier, SubscriptionTier) else k.tier,
+            "tier": k.tier if isinstance(k.tier, str) else (k.tier.value if hasattr(k.tier, 'value') else k.tier),
             "requests_count": k.requests_count,
             "daily_limit": k.daily_limit,
             "is_active": k.is_active,

@@ -17,7 +17,7 @@ class JSONText(TypeDecorator):
         return json.loads(value) if value else {}
 from app.models.database import Base
 from app.models.monetization import SubscriptionTier
-import enum
+from sqlalchemy.orm import relationship
 
 
 class User(Base):
@@ -40,6 +40,9 @@ class User(Base):
     email_preferences: Mapped[dict] = mapped_column(JSONText, default={})
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    subscription = relationship("Subscription", back_populates="user", uselist=False)
+    api_keys = relationship("ApiKey", back_populates="user")
 
 
 class DownloadHistory(Base):

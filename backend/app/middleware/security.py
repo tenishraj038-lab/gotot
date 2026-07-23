@@ -1,6 +1,7 @@
 import time
 import uuid
 import logging
+import time
 from typing import Optional
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -19,11 +20,14 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
 
     async def dispatch(self, request: Request, call_next):
-        start_time = time.time()
-        request_id = str(uuid.uuid4())[:8]
+        # Use request_id from JSONLogMiddleware if already set, otherwise generate
+        if not hasattr(request.state, "request_id") or not request.state.request_id:
+            request.state.request_id = str(uuid.uuid4())[:8]
+        request_id = request.state.request_id
 
-        request.state.request_id = request_id
-        request.state.start_time = start_time
+        if not hasattr(request.state, "start_time") or not request.state.start_time:
+            request.state.start_time = time.time()
+        start_time = request.state.start_time
 
         try:
             response: Response = await call_next(request)
@@ -46,6 +50,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Download-Options"] = "noopen"
         response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
         response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+        response.headers["Cross-Origin-Embedder-Policy"] = "credentialless"
 
         if settings.environment == "production":
             csp_parts = [

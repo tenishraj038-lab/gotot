@@ -1,7 +1,7 @@
 {
   "name": "GoTot - Universal Video Downloader",
   "short_name": "GoTot",
-  "description": "Download videos from YouTube, TikTok, Instagram, Twitter, and more. Free, fast, and secure.",
+  "description": "Download videos from TikTok, Instagram, Twitter, Facebook, Reddit, and 10+ more platforms. Free, fast, and secure.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

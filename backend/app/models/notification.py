@@ -28,7 +28,7 @@ class Notification(Base):
     type: Mapped[str] = mapped_column(String(50), nullable=False)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
-    data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    data: Mapped[dict | None] = mapped_column(JSON(none_as_null=True), nullable=True)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
     is_push_sent: Mapped[bool] = mapped_column(Boolean, default=False)
     is_email_sent: Mapped[bool] = mapped_column(Boolean, default=False)

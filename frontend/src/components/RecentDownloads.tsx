@@ -1,15 +1,15 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Globe, TrendingUp, Youtube, Music, Video, Twitter, Facebook } from "lucide-react";
+import { Globe, TrendingUp, Music, Video, Twitter, Facebook } from "lucide-react";
 
 const mockDownloads = [
-  { platform: "youtube", format: "mp4", size: "24.3 MB", time: "2m ago", color: "bg-red-500", icon: Youtube },
+  { platform: "tiktok", format: "mp4", size: "24.3 MB", time: "2m ago", color: "bg-pink-500", icon: Music },
   { platform: "tiktok", format: "mp4", size: "8.7 MB", time: "5m ago", color: "bg-pink-500", icon: Music },
   { platform: "instagram", format: "mp4", size: "12.1 MB", time: "8m ago", color: "bg-purple-500", icon: Video },
   { platform: "twitter", format: "mp4", size: "5.2 MB", time: "11m ago", color: "bg-sky-500", icon: Twitter },
   { platform: "facebook", format: "mp4", size: "18.9 MB", time: "14m ago", color: "bg-blue-600", icon: Facebook },
-  { platform: "youtube", format: "mp3", size: "4.1 MB", time: "17m ago", color: "bg-red-500", icon: Youtube },
+  { platform: "snapchat", format: "mp4", size: "4.1 MB", time: "17m ago", color: "bg-yellow-400", icon: Globe },
 ];
 
 export default function RecentDownloads() {

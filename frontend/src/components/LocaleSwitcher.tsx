@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { Globe } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Locale, getLocale, setLocale } from "@/lib/i18n";
 
 export default function LocaleSwitcher() {
+  const router = useRouter();
   const [locale, setLocaleState] = useState<Locale>("en");
 
   useEffect(() => {
@@ -15,9 +17,7 @@ export default function LocaleSwitcher() {
     const next: Locale = locale === "en" ? "es" : "en";
     setLocale(next);
     setLocaleState(next);
-    if (typeof window !== "undefined") {
-      window.location.reload();
-    }
+    router.refresh();
   };
 
   return (

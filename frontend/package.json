@@ -12,6 +12,7 @@
     "test:coverage": "jest --coverage"
   },
   "dependencies": {
+    "@next/swc-linux-x64-gnu": "^16.2.10",
     "clsx": "^2.1.1",
     "framer-motion": "^11.3.0",
     "lucide-react": "^0.424.0",
@@ -25,17 +26,17 @@
     "@testing-library/jest-dom": "^6.4.8",
     "@testing-library/react": "^16.0.0",
     "@types/jest": "^29.5.12",
-    "@types/node": "^20.14.12",
-    "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
-    "autoprefixer": "^10.4.19",
+    "@types/node": "20.19.43",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "autoprefixer": "^10.5.4",
     "eslint": "^8.57.0",
     "eslint-config-next": "^14.2.35",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
-    "postcss": "^8.4.39",
-    "tailwindcss": "^3.4.6",
+    "postcss": "^8.5.22",
+    "tailwindcss": "^3.4.19",
     "ts-jest": "^29.2.3",
-    "typescript": "^5.5.4"
+    "typescript": "5.9.3"
   }
 }

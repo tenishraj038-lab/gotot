@@ -50,7 +50,7 @@ async def send_email(to: str, subject: str, body_text: str, html: Optional[str] 
         msg.attach(MIMEText(body_text, "plain"))
         if html:
             msg.attach(MIMEText(html, "html"))
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=10) as server:
             server.starttls()
             server.login(settings.smtp_user, settings.smtp_password)
             server.sendmail(settings.smtp_from_email, [to], msg.as_string())
@@ -72,7 +72,7 @@ async def send_welcome_email(to: str, username: str) -> bool:
         "Welcome to GoTot!",
         f"""<p>Hi <strong>{username}</strong>,</p>
 <p>Welcome to <strong>GoTot</strong> — your universal video downloader.</p>
-<p>You can now download videos from YouTube, TikTok, Instagram, Twitter, Facebook, Reddit, Vimeo, Twitch, Dailymotion, LinkedIn, and Pinterest.</p>
+<p>You can now download videos from, TikTok, Instagram, Twitter, Facebook, Reddit, Vimeo, Twitch, Dailymotion, LinkedIn, and Pinterest.</p>
 <p>Here are some tips to get started:</p>
 <ul>
 <li>Copy any video URL and paste it in the download box</li>

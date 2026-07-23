@@ -2,9 +2,9 @@
   "manifest_version": 3,
   "name": "GoTot Video Downloader",
   "version": "1.0.0",
-  "description": "Download videos from YouTube, TikTok, Instagram, Twitter, and more with one click.",
+  "description": "Download videos from TikTok, Instagram, Twitter, and more with one click.",
   "permissions": ["activeTab", "scripting", "storage", "downloads"],
-  "host_permissions": ["*://*.youtube.com/*", "*://*.tiktok.com/*", "*://*.instagram.com/*", "*://*.twitter.com/*", "*://*.x.com/*", "*://*.facebook.com/*", "*://*.reddit.com/*"],
+  "host_permissions": ["*://*.tiktok.com/*", "*://*.instagram.com/*", "*://*.twitter.com/*", "*://*.x.com/*", "*://*.facebook.com/*", "*://*.reddit.com/*"],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -24,7 +24,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://*.youtube.com/*", "*://*.tiktok.com/*", "*://*.instagram.com/*", "*://*.twitter.com/*", "*://*.x.com/*"],
+      "matches": ["*://*.tiktok.com/*", "*://*.instagram.com/*", "*://*.twitter.com/*", "*://*.x.com/*"],
       "js": ["content.js"],
       "css": ["styles.css"]
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { CheckCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
@@ -31,7 +31,7 @@ export default function DownloadClient({ platform, defaultUrl, seoContent }: Pro
 
   useEffect(() => {
     if (defaultUrl) setUrl(defaultUrl);
-  }, []);
+  }, [defaultUrl, setUrl]);
 
   const faqJsonLd = {
     "@context": "https://schema.org",

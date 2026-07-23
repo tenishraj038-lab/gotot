@@ -12,7 +12,7 @@ export const es = {
   hero: {
     title: "Descarga cualquier video",
     subtitle: "De cualquier plataforma",
-    description: "Pega un enlace y descarga videos en alta calidad desde YouTube, TikTok, Instagram, Twitter, Facebook y más de 11 plataformas. Gratis, rápido y seguro.",
+    description: "Pega un enlace y descarga videos en alta calidad desde TikTok, Instagram, Twitter, Facebook y más de 11 plataformas. Gratis, rápido y seguro.",
     badge: "Confiado por más de 1M de usuarios",
     noLogin: "Sin necesidad de registro",
     unlimited: "Descargas ilimitadas gratis",
@@ -20,7 +20,7 @@ export const es = {
     mp3And4k: "MP3 + 4K compatible",
   },
   download: {
-    placeholder: "Pega la URL del video (YouTube, TikTok, Instagram...)",
+    placeholder: "Pega la URL del video (TikTok, Instagram...)",
     button: "Obtener Video",
     analyzing: "Analizando...",
     error: "Error",
@@ -71,7 +71,7 @@ export const es = {
     title: "Por qué",
     subtitle: "El descargador de videos más potente, seguro y fácil de usar. Confiado por millones en todo el mundo.",
     platformsTitle: "11+ Plataformas",
-    platformsDesc: "YouTube, TikTok, Instagram, Twitter/X, Facebook, Reddit, Vimeo, Twitch, LinkedIn, Pinterest, Dailymotion.",
+    platformsDesc: "TikTok, Instagram, Twitter/X, Facebook, Reddit, Vimeo, Twitch, LinkedIn, Pinterest, Dailymotion.",
     fastTitle: "Rápido",
     fastDesc: "Procesamiento asíncrono para análisis y descargas instantáneas. Obtén tus videos en segundos.",
     secureTitle: "Seguro y Privado",
@@ -90,7 +90,7 @@ export const es = {
     freeDesc: "Descargas ilimitadas, todos los formatos, todas las calidades. Sin registro requerido.",
   },
   footer: {
-    description: "Descargador universal de videos. Descarga desde YouTube, TikTok, Instagram, Twitter, Facebook, Reddit, Vimeo, Twitch, Dailymotion, LinkedIn y Pinterest. Rápido, seguro y privado.",
+    description: "Descargador universal de videos. Descarga desde TikTok, Instagram, Twitter, Facebook, Reddit, Vimeo, Twitch, Dailymotion, LinkedIn y Pinterest. Rápido, seguro y privado.",
     downloaders: "Descargadores",
     morePlatforms: "Más Plataformas",
     company: "Compañía",

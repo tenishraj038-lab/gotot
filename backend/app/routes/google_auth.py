@@ -98,7 +98,7 @@ async def google_login(
     audit_logger.login_success(str(user.id), google_email, ip)
 
     return GoogleTokenResponse(
-        access_token=create_access_token({"sub": str(user.id), "role": user.role.value}),
+        access_token=create_access_token({"sub": str(user.id), "role": user.role}),
         refresh_token=create_refresh_token({"sub": str(user.id)}, token_version=user.refresh_token_version),
         is_new_user=is_new,
     )

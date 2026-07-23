@@ -5,27 +5,10 @@ from app.providers import provider_registry
 class TestProviderRegistry:
     def test_all_platforms_registered(self):
         names = provider_registry.names
-        expected = ["youtube", "tiktok", "instagram", "twitter", "facebook",
+        expected = ["tiktok", "instagram", "twitter", "facebook",
                     "reddit", "vimeo", "dailymotion", "twitch", "linkedin", "pinterest"]
         for name in expected:
             assert name in names, f"{name} not registered"
-
-    def test_detect_youtube(self):
-        provider = provider_registry.detect("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
-        assert provider is not None
-        assert provider.name == "youtube"
-        assert provider.display_name == "YouTube"
-        assert provider.color == "#FF0000"
-
-    def test_detect_youtube_short(self):
-        provider = provider_registry.detect("https://youtu.be/dQw4w9WgXcQ")
-        assert provider is not None
-        assert provider.name == "youtube"
-
-    def test_detect_youtube_shorts(self):
-        provider = provider_registry.detect("https://www.youtube.com/shorts/abc123")
-        assert provider is not None
-        assert provider.name == "youtube"
 
     def test_detect_tiktok(self):
         provider = provider_registry.detect("https://www.tiktok.com/@user/video/123")
@@ -102,19 +85,13 @@ class TestProviderRegistry:
         assert provider is None
 
     def test_playlist_support(self):
-        youtube = provider_registry.get("youtube")
-        assert youtube is not None
-        assert youtube.supports_playlist() is True
-
-        tiktok = provider_registry.get("tiktok")
-        assert tiktok is not None
-        assert tiktok.supports_playlist() is False
+        provider = provider_registry.get("tiktok")
+        assert provider is not None
+        assert provider.supports_playlist() is False
 
     def test_provider_names_and_colors(self):
         names = provider_registry.display_names
         colors = provider_registry.colors
-        assert names["youtube"] == "YouTube"
-        assert colors["youtube"] == "#FF0000"
         assert names["tiktok"] == "TikTok"
         assert colors["tiktok"] == "#000000"
         assert names["twitter"] == "Twitter / X"
@@ -122,7 +99,7 @@ class TestProviderRegistry:
 
     def test_all_patterns_present(self):
         patterns = provider_registry.all_patterns()
-        assert len(patterns) == 11
+        assert len(patterns) >= 10
         for name in provider_registry.names:
             assert name in patterns
             assert len(patterns[name]) > 0

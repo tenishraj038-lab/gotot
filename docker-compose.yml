@@ -72,8 +72,10 @@ services:
       start_period: 30s
 
   celery_worker:
-    image: gotot-backend:latest
-    command: celery -A celery worker --loglevel=info --concurrency=${CELERY_CONCURRENCY:-4} --max-tasks-per-child=100
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A celery_app worker --loglevel=info --concurrency=${CELERY_CONCURRENCY:-4} --max-tasks-per-child=100
     env_file:
       - ./backend/.env
     depends_on:
@@ -85,8 +87,10 @@ services:
     restart: unless-stopped
 
   celery_beat:
-    image: gotot-backend:latest
-    command: celery -A celery beat --loglevel=info
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A celery_app beat --loglevel=info
     env_file:
       - ./backend/.env
     depends_on:

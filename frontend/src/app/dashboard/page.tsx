@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   User, CreditCard, Key, Gift, Download, LogOut,
@@ -28,7 +28,9 @@ export default function DashboardPage() {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [refCode, setRefCode] = useState("");
 
+  const mounted = useRef(true);
   useEffect(() => {
+    mounted.current = true;
     loadTokens();
     const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
     if (!token) {
@@ -37,6 +39,7 @@ export default function DashboardPage() {
       return;
     }
     loadDashboard();
+    return () => { mounted.current = false; };
   }, []);
 
   const loadDashboard = async () => {

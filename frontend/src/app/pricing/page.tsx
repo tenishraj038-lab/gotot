@@ -13,7 +13,7 @@ const plans = [
     price: "$0",
     period: "forever",
     description: "Everything you need, completely free",
-    popular: true,
+    popular: false,
     color: "from-primary-500 to-accent-600",
     features: [
       { text: "Unlimited downloads", included: true },
@@ -33,7 +33,8 @@ const plans = [
     price: "$4.99",
     period: "per month",
     description: "For power users who need API access",
-    color: "from-gray-500 to-gray-600",
+    popular: true,
+    color: "from-primary-500 to-accent-600",
     features: [
       { text: "All Free features", included: true },
       { text: "API access (1000 req/day)", included: true },

@@ -22,8 +22,8 @@ describe("Zustand Store", () => {
 
   it("sets URL correctly", () => {
     const { setUrl } = useStore.getState();
-    setUrl("https://www.youtube.com/watch?v=test");
-    expect(useStore.getState().url).toBe("https://www.youtube.com/watch?v=test");
+    setUrl("https://www.tiktok.com/@user/video/123456789");
+    expect(useStore.getState().url).toBe("https://www.tiktok.com/@user/video/123456789");
   });
 
   it("sets loading state", () => {

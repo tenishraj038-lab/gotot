@@ -1,142 +1,150 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, CheckCircle, XCircle, X, Download } from "lucide-react";
-import { API_BASE } from "@/lib/api";
+import { useState, useEffect, useCallback } from "react";
+import { motion } from "framer-motion";
+import { Loader2, Download, RefreshCw, CheckCircle2, XCircle, Clock } from "lucide-react";
 
-interface QueueStatus {
-  task_id: string;
-  status: string;
-  progress: number;
-  message: string;
+interface QueueProgressProps {
+  taskId: string;
+  wsUrl?: string;
+  onComplete?: (result: { file_name: string; file_size: number; format: string; file_path: string }) => void;
+  onError?: (error: string) => void;
 }
 
-export default function QueueProgress({ taskId, onComplete }: { taskId: string | null; onComplete?: () => void }) {
-  const [status, setStatus] = useState<QueueStatus | null>(null);
-  const [visible, setVisible] = useState(false);
+interface TaskStatus {
+  task_id: string;
+  status: "queued" | "downloading" | "processing" | "completed" | "failed";
+  progress: number;
+  message: string;
+  error?: string;
+}
+
+const STATUS_ICONS: Record<string, React.ElementType> = {
+  queued: Clock,
+  downloading: Download,
+  processing: RefreshCw,
+  completed: CheckCircle2,
+  failed: XCircle,
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  queued: "text-yellow-500",
+  downloading: "text-blue-500",
+  processing: "text-purple-500",
+  completed: "text-green-500",
+  failed: "text-red-500",
+};
+
+export default function QueueProgress({ taskId, wsUrl, onComplete, onError }: QueueProgressProps) {
+  const [status, setStatus] = useState<TaskStatus | null>(null);
+  const [pollCount, setPollCount] = useState(0);
+  const maxPolls = 600; // 10 minutes at 1s intervals
+
+  const poll = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/download/queue/${taskId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setStatus(data);
+
+      if (data.status === "completed") {
+        onComplete?.(data);
+        return;
+      }
+      if (data.status === "failed") {
+        onError?.(data.error || data.message || "Download failed");
+        return;
+      }
+    } catch {
+      // Poll will retry
+    }
+  }, [taskId, onComplete, onError]);
 
   useEffect(() => {
-    if (!taskId) {
-      setVisible(false);
+    if (pollCount >= maxPolls) {
+      onError?.("Download timed out. Please try again.");
       return;
     }
 
-    setVisible(true);
-    const wsUrl = (typeof window !== "undefined" && process.env.NEXT_PUBLIC_WS_URL) || API_BASE.replace(/^http/, "ws");
-    let ws: WebSocket | null = null;
-    let pollTimer: ReturnType<typeof setInterval> | null = null;
+    const timer = setInterval(() => {
+      setPollCount((p) => p + 1);
+      poll();
+    }, 1000);
 
-    try {
-      ws = new WebSocket(`${wsUrl}/ws/progress/${taskId}`);
+    return () => clearInterval(timer);
+  }, [poll, pollCount, maxPolls, onError]);
 
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          setStatus(data);
-          if (data.status === "completed" || data.status === "error") {
-            setTimeout(() => { setVisible(false); onComplete?.(); }, 3000);
-          }
-        } catch {}
-      };
+  useEffect(() => {
+    if (!wsUrl) return;
+    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const ws = new WebSocket(`${wsProtocol}//${window.location.host}${wsUrl}`);
 
-      ws.onerror = () => {
-        ws?.close();
-        pollTimer = setInterval(async () => {
-          try {
-            const resp = await fetch(`${API_BASE}/download/queue/${taskId}`);
-            if (resp.ok) {
-              const data = await resp.json();
-              setStatus(data);
-              if (data.status === "completed" || data.status === "error") {
-                if (pollTimer) clearInterval(pollTimer);
-                setTimeout(() => { setVisible(false); onComplete?.(); }, 3000);
-              }
-            }
-          } catch {}
-        }, 2000);
-      };
-    } catch {
-      pollTimer = setInterval(async () => {
-        try {
-          const resp = await fetch(`${API_BASE}/download/queue/${taskId}`);
-          if (resp.ok) {
-            const data = await resp.json();
-            setStatus(data);
-            if (data.status === "completed" || data.status === "error") {
-              if (pollTimer) clearInterval(pollTimer);
-              setTimeout(() => { setVisible(false); onComplete?.(); }, 3000);
-            }
-          }
-        } catch {}
-      }, 2000);
-    }
-
-    return () => {
-      ws?.close();
-      if (pollTimer) clearInterval(pollTimer);
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        setStatus(data as TaskStatus);
+        if (data.status === "completed") onComplete?.(data);
+        if (data.status === "failed") onError?.(data.error || data.message || "Download failed");
+      } catch {}
     };
-  }, [taskId, onComplete]);
 
-  if (!visible || !status) return null;
+    ws.onerror = () => {};
+    return () => ws.close();
+  }, [wsUrl, onComplete, onError]);
 
-  const isError = status.status === "error";
-  const isDone = status.status === "completed";
+  if (!status) {
+    return (
+      <div className="flex items-center gap-3 p-4 rounded-xl bg-gray-100 dark:bg-gray-800 animate-pulse">
+        <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+        <span className="text-sm text-gray-500">Initializing download...</span>
+      </div>
+    );
+  }
+
+  const StatusIcon = STATUS_ICONS[status.status] || Clock;
+  const iconColor = STATUS_COLORS[status.status] || "text-gray-400";
 
   return (
-    <AnimatePresence>
-      {visible && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-          className="mt-4 p-4 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-lg"
-          role="status"
-          aria-live="polite"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              {isDone ? (
-                <CheckCircle className="w-5 h-5 text-green-500" aria-hidden="true" />
-              ) : isError ? (
-                <XCircle className="w-5 h-5 text-red-500" aria-hidden="true" />
-              ) : (
-                <Loader2 className="w-5 h-5 text-primary-500 animate-spin" aria-hidden="true" />
-              )}
-              <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                {status.message || status.status}
-              </span>
-            </div>
-            <button
-              onClick={() => setVisible(false)}
-              className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              aria-label="Dismiss progress"
-            >
-              <X className="w-4 h-4 text-gray-400" />
-            </button>
-          </div>
-
-          <div className="w-full h-2 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
-            <motion.div
-              className={`h-full rounded-full transition-colors ${
-                isError ? "bg-red-500" : isDone ? "bg-green-500" : "bg-gradient-to-r from-primary-500 to-accent-500"
-              }`}
-              initial={{ width: 0 }}
-              animate={{ width: `${status.progress}%` }}
-              transition={{ duration: 0.5, ease: "easeOut" }}
-            />
-          </div>
-
-          <div className="flex items-center justify-between mt-2">
-            <span className="text-xs text-gray-500 dark:text-gray-400">{status.progress}%</span>
-            {isDone && (
-              <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                <Download className="w-3 h-3" /> Ready
-              </span>
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="w-full max-w-md mx-auto"
+    >
+      <div className="p-4 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-lg">
+        <div className="flex items-center gap-3 mb-3">
+          <StatusIcon className={`w-5 h-5 ${iconColor} ${status.status === "processing" ? "animate-spin" : ""}`} />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+              {status.status === "queued" && "Queued"}
+              {status.status === "downloading" && "Downloading..."}
+              {status.status === "processing" && "Processing..."}
+              {status.status === "completed" && "Download Complete!"}
+              {status.status === "failed" && "Download Failed"}
+            </p>
+            {status.message && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{status.message}</p>
             )}
           </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+            {status.progress}%
+          </span>
+        </div>
+
+        <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+          <motion.div
+            className={`h-full rounded-full transition-all duration-500 ${
+              status.status === "failed" ? "bg-red-500" : "bg-gradient-to-r from-primary-500 to-accent-500"
+            }`}
+            initial={{ width: 0 }}
+            animate={{ width: `${status.progress}%` }}
+            transition={{ duration: 0.5 }}
+          />
+        </div>
+
+        {status.status === "failed" && status.error && (
+          <p className="mt-2 text-xs text-red-500">{status.error}</p>
+        )}
+      </div>
+    </motion.div>
   );
 }

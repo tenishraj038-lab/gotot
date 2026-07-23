@@ -4,8 +4,19 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Download, X } from "lucide-react";
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+
+declare global {
+  interface WindowEventMap {
+    beforeinstallprompt: BeforeInstallPromptEvent;
+  }
+}
+
 export default function PwaRegister() {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
 
@@ -17,7 +28,7 @@ export default function PwaRegister() {
       return;
     }
 
-    const handler = (e: Event) => {
+    const handler = (e: BeforeInstallPromptEvent) => {
       e.preventDefault();
       setDeferredPrompt(e);
       setShowPrompt(true);
@@ -37,13 +48,12 @@ export default function PwaRegister() {
     };
   }, []);
 
-  const handleInstall = () => {
+  const handleInstall = async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
-    deferredPrompt.userChoice.then(() => {
-      setDeferredPrompt(null);
-      setShowPrompt(false);
-    });
+    await deferredPrompt.userChoice;
+    setDeferredPrompt(null);
+    setShowPrompt(false);
   };
 
   return (

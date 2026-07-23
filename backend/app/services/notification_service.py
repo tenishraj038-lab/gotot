@@ -1,4 +1,5 @@
 import logging
+import uuid
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, update
@@ -36,9 +37,13 @@ async def create_notification(
     await db.refresh(notification)
 
     if send_email:
-        await _send_email_for_notification(db, user_id, notif_type, data or {})
-        notification.is_email_sent = True
-        await db.commit()
+        try:
+            await _send_email_for_notification(db, user_id, notif_type, data or {})
+            notification.is_email_sent = True
+            await db.commit()
+        except Exception as e:
+            logger.warning(f"Failed to send email for notification {notification.id}: {e}")
+            # Notification already committed without email flag, which is fine
 
     return notification
 
@@ -81,6 +86,9 @@ async def _send_email_for_notification(db: AsyncSession, user_id: str, notif_typ
             data.get("details", ""),
         )
 
+
+    if isinstance(user_id, str):
+        user_id = uuid.UUID(user_id)
 
 async def get_notifications(
     db: AsyncSession,
@@ -142,6 +150,8 @@ async def mark_all_as_read(db: AsyncSession, user_id: str):
 
 
 async def get_unread_count(db: AsyncSession, user_id: str) -> int:
+    if isinstance(user_id, str):
+        user_id = uuid.UUID(user_id)
     result = await db.scalar(
         select(func.count()).select_from(Notification).where(
             Notification.user_id == user_id, Notification.is_read == False

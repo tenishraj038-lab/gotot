@@ -1,11 +1,24 @@
-from fastapi import APIRouter, Depends, Request, Query
-from pydantic import BaseModel, EmailStr
+from fastapi import APIRouter, Depends, Request
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
 from app.models.database import get_db
 from app.models.user import User
 from app.routes.payments import get_current_user
 import logging
+
+
+async def get_user_optional(request: Request, db: AsyncSession = Depends(get_db)):
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    token = auth_header.split(" ")[1]
+    from app.services.auth_service import decode_token, parse_user_id
+    payload = decode_token(token)
+    if not payload:
+        return None
+    from sqlalchemy import select
+    result = await db.execute(select(User).where(User.id == parse_user_id(payload.get("sub"))))
+    return result.scalar_one_or_none()
 
 logger = logging.getLogger("gotot.feedback")
 
@@ -46,7 +59,7 @@ async def submit_feedback(
     data: FeedbackCreate,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    user: User | None = Depends(get_current_user),
+    user: User | None = Depends(get_user_optional),
 ):
     ip = request.client.host if request.client else "unknown"
     logger.info(f"Feedback from {user.email if user else 'anonymous'} ({ip}): {data.type} - {data.title}")
@@ -58,7 +71,7 @@ async def report_bug(
     data: BugReport,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    user: User | None = Depends(get_current_user),
+    user: User | None = Depends(get_user_optional),
 ):
     ip = request.client.host if request.client else "unknown"
     logger.info(f"Bug report from {user.email if user else 'anonymous'} ({ip}): {data.title}")
@@ -70,7 +83,7 @@ async def request_feature(
     data: FeatureRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    user: User | None = Depends(get_current_user),
+    user: User | None = Depends(get_user_optional),
 ):
     ip = request.client.host if request.client else "unknown"
     logger.info(f"Feature request from {user.email if user else 'anonymous'} ({ip}): {data.title}")
@@ -82,7 +95,7 @@ async def submit_survey(
     data: SurveyResponse,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    user: User | None = Depends(get_current_user),
+    user: User | None = Depends(get_user_optional),
 ):
     if data.rating < 1 or data.rating > 5:
         return {"status": "error", "message": "Rating must be between 1 and 5"}

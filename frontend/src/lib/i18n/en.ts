@@ -12,7 +12,7 @@ export const en = {
   hero: {
     title: "Download Any Video",
     subtitle: "From Any Platform",
-    description: "Paste a link and download videos in high quality from YouTube, TikTok, Instagram, Twitter, Facebook, and 11+ more platforms. Free, fast, and secure.",
+    description: "Paste a link and download videos in high quality from TikTok, Instagram, Twitter, Facebook, and 10+ more platforms. Free, fast, and secure.",
     badge: "Trusted by 1M+ users worldwide",
     noLogin: "No login required",
     unlimited: "Unlimited free downloads",
@@ -20,7 +20,7 @@ export const en = {
     mp3And4k: "MP3 + 4K supported",
   },
   download: {
-    placeholder: "Paste video URL here (YouTube, TikTok, Instagram...)",
+    placeholder: "Paste video URL here (TikTok, Instagram...)",
     button: "Get Video",
     analyzing: "Analyzing...",
     error: "Error",
@@ -71,7 +71,7 @@ export const en = {
     title: "Why",
     subtitle: "The most powerful, secure, and user-friendly video downloader on the web. Trusted by millions worldwide.",
     platformsTitle: "11+ Platforms",
-    platformsDesc: "YouTube, TikTok, Instagram, Twitter/X, Facebook, Reddit, Vimeo, Twitch, LinkedIn, Pinterest, Dailymotion.",
+    platformsDesc: "TikTok, Instagram, Twitter/X, Facebook, Reddit, Vimeo, Twitch, LinkedIn, Pinterest, Dailymotion.",
     fastTitle: "Lightning Fast",
     fastDesc: "Async processing for instant video analysis and downloads. Get your videos in seconds.",
     secureTitle: "Secure & Private",
@@ -90,7 +90,7 @@ export const en = {
     freeDesc: "Unlimited downloads, all formats, all qualities. No sign-up required. Upgrade optional.",
   },
   footer: {
-    description: "Universal video downloader. Download from YouTube, TikTok, Instagram, Twitter, Facebook, Reddit, Vimeo, Twitch, Dailymotion, LinkedIn, and Pinterest. Fast, secure, and private.",
+    description: "Universal video downloader. Download from TikTok, Instagram, Twitter, Facebook, Reddit, Vimeo, Twitch, Dailymotion, LinkedIn, and Pinterest. Fast, secure, and private.",
     downloaders: "Downloaders",
     morePlatforms: "More Platforms",
     company: "Company",

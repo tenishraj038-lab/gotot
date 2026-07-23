@@ -10,21 +10,24 @@ logger = logging.getLogger("gotot.cache")
 _redis: Optional[aioredis.Redis] = None
 
 
-async def get_redis() -> aioredis.Redis:
+async def get_redis() -> Optional[aioredis.Redis]:
     global _redis
-    if _redis is None:
-        try:
-            _redis = aioredis.from_url(
-                settings.redis_url,
-                encoding="utf-8",
-                decode_responses=True,
-                socket_connect_timeout=2,
-            )
-            await _redis.ping()
-            logger.info("Redis cache connected")
-        except Exception as e:
-            logger.warning(f"Redis unavailable, caching disabled: {e}")
-            _redis = None
+    if _redis is not None:
+        return _redis
+    if not settings.redis_url or settings.redis_url.startswith("fake"):
+        return None
+    try:
+        _redis = aioredis.from_url(
+            settings.redis_url,
+            encoding="utf-8",
+            decode_responses=True,
+            socket_connect_timeout=2,
+        )
+        await _redis.ping()
+        logger.info("Redis cache connected")
+    except Exception as e:
+        logger.warning(f"Redis unavailable, caching disabled: {e}")
+        _redis = None
     return _redis
 
 

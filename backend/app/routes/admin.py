@@ -78,6 +78,7 @@ async def get_admin_stats(db: AsyncSession = Depends(get_db)):
         .limit(10)
     )
 
+    subs_by_tier_map = {str(row[0]): row[1] for row in subs_by_tier}
     return {
         "users": {
             "total": total_users or 0,
@@ -97,8 +98,17 @@ async def get_admin_stats(db: AsyncSession = Depends(get_db)):
         },
         "subscriptions": {
             "active": active_subs or 0,
-            "by_plan": {row[0].value if hasattr(row[0], 'value') else row[0]: row[1] for row in subs_by_tier},
+            "by_plan": subs_by_tier_map,
         },
+        # Flat fields for frontend compatibility
+        "total_users": total_users or 0,
+        "total_downloads": total_downloads or 0,
+        "total_revenue": round(float(total_revenue or 0), 2),
+        "active_subscriptions": active_subs or 0,
+        "pro_users": subs_by_tier_map.get("pro", 0),
+        "unlimited_users": subs_by_tier_map.get("unlimited", 0),
+        "api_keys_count": 0,
+        "completed_referrals": 0,
     }
 
 
@@ -134,7 +144,7 @@ async def list_users(
                 "is_active": u.is_active,
                 "is_admin": u.is_admin,
                 "is_verified": u.is_verified,
-                "tier": u.role.value if hasattr(u.role, 'value') else u.role,
+                "tier": u.role,
                 "daily_downloads": u.downloads_today,
                 "total_downloads": u.total_downloads or 0,
                 "created_at": u.created_at.isoformat(),
@@ -754,8 +764,24 @@ async def delete_user(
     if user.is_admin:
         raise HTTPException(status_code=403, detail="Cannot delete admin users")
 
+    # Delete child records
     await db.execute(
-        select(DownloadHistory).where(DownloadHistory.user_id == user.id)
+        DownloadHistory.__table__.delete().where(DownloadHistory.user_id == user.id)
+    )
+    from app.models.monetization import Subscription, Payment, ApiKey, Referral
+    await db.execute(
+        Subscription.__table__.delete().where(Subscription.user_id == user.id)
+    )
+    await db.execute(
+        Payment.__table__.delete().where(Payment.user_id == user.id)
+    )
+    await db.execute(
+        ApiKey.__table__.delete().where(ApiKey.user_id == user.id)
+    )
+    await db.execute(
+        Referral.__table__.delete().where(
+            (Referral.referrer_id == user.id) | (Referral.referred_id == user.id)
+        )
     )
     await db.delete(user)
     await db.commit()

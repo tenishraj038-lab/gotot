@@ -2,13 +2,13 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Download, Clock, AlertCircle, CheckCircle,
-  Loader2, ExternalLink, Monitor, Music,
-  FileDown, Share2, ChevronDown, ChevronUp,
+  Download, AlertCircle, CheckCircle, Loader2, Monitor, Music,
+  FileDown, Share2, ChevronDown, ChevronUp, XCircle, RefreshCw,
+  AlertTriangle, Info,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { api, FormatInfo } from "@/lib/api";
-import { useState } from "react";
+import { api, FormatInfo, API_BASE } from "@/lib/api";
+import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import PlaylistViewer from "./PlaylistViewer";
 
@@ -65,42 +65,122 @@ export default function ResultCard() {
     videoInfo, isLoading, error, downloadResult, setDownloadResult,
     setError, setAdModalOpen, setPendingDownload,
   } = useStore();
+  const url = useStore((s) => s.url);
   const [downloadingFormat, setDownloadingFormat] = useState<string | null>(null);
+  const [savingFile, setSavingFile] = useState(false);
   const [mp3Bitrate, setMp3Bitrate] = useState("192");
   const [showAllFormats, setShowAllFormats] = useState(false);
   const [activeTab, setActiveTab] = useState<"video" | "audio">("video");
+  const [ffmpegAvailable, setFfmpegAvailable] = useState<boolean | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+
+  useEffect(() => {
+    api.getFFmpegStatus().then(s => setFfmpegAvailable(s.available)).catch(() => {});
+  }, []);
+
+  const handleSaveFile = async () => {
+    if (!downloadResult) return;
+    setSavingFile(true);
+    try {
+      const response = await fetch(`${API_BASE}${downloadResult.download_url}`);
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(text || `HTTP ${response.status}`);
+      }
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `${downloadResult.file_name}.${downloadResult.format}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+      toast.success("Saved to device!");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+      toast.error("Save failed: " + msg);
+    } finally {
+      setSavingFile(false);
+    }
+  };
 
   const handleDownload = async (format: FormatInfo, asMp3 = false) => {
     if (!videoInfo) return;
     setDownloadingFormat(format.format_id);
+    setError(null);
+    setRetryCount(0);
 
-    try {
-      const result = await api.startDownload(videoInfo.url, format.format_id, asMp3, mp3Bitrate);
+    const doDownload = async () => {
+      try {
+        const result = await api.startDownload(url, format.format_id, asMp3, mp3Bitrate);
 
-      if (result.require_ad) {
-        setPendingDownload({ url: videoInfo.url, formatId: format.format_id, asMp3 });
-        setAdModalOpen(true);
-        return;
+        if (result.require_ad) {
+          setPendingDownload({ url, formatId: format.format_id, asMp3 });
+          setAdModalOpen(true);
+          return;
+        }
+
+        if (result.require_payment) {
+          useStore.getState().setPaymentModalOpen(true);
+          return;
+        }
+
+        setDownloadResult(result);
+        toast.success("Download ready!");
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : (typeof err === "string" ? err : JSON.stringify(err));
+        setError(msg);
+        toast.error(msg.slice(0, 100));
+      } finally {
+        setDownloadingFormat(null);
       }
+    };
 
-      setDownloadResult(result);
-      toast.success("Download ready!");
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Download failed";
-      setError(msg);
-    } finally {
-      setDownloadingFormat(null);
+    await doDownload();
+  };
+
+  const handleCancel = async () => {
+    if (downloadResult?.task_id) {
+      try {
+        await api.cancelDownload(downloadResult.task_id);
+        setDownloadResult(null);
+        toast.success("Download cancelled");
+      } catch {
+        toast.error("Could not cancel download");
+      }
     }
   };
 
-  const videoFormats = videoInfo?.formats.filter(f => f.has_video && f.has_audio) || [];
+  const videoFormats = videoInfo?.formats.filter(f => f.has_video) || [];
   const audioFormats = videoInfo?.formats.filter(f => !f.has_video && f.has_audio) || [];
   const displayedVideo = showAllFormats ? videoFormats : videoFormats.slice(0, 8);
-
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api";
+  const needsAudioFormats = videoFormats.filter(f => f.needs_audio);
 
   return (
     <AnimatePresence mode="wait">
+      {/* FFmpeg Warning */}
+      {!isLoading && videoInfo && ffmpegAvailable === false && (
+        <motion.div
+          key="ffmpeg-warning"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-4 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 flex items-start gap-3"
+        >
+          <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">FFmpeg not installed</p>
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+              Audio-video merging and MP3 conversion are disabled. Some downloads may have no audio.
+              Install FFmpeg: <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">sudo apt install ffmpeg</code> (Linux) or{" "}
+              <code className="bg-amber-100 dark:bg-amber-900/40 px-1 rounded">brew install ffmpeg</code> (macOS).
+            </p>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Error Display */}
       {error && (
         <motion.div
           key="error"
@@ -110,16 +190,28 @@ export default function ResultCard() {
           className="mt-6 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 flex items-start gap-3"
         >
           <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-red-800 dark:text-red-200">Error</p>
-            <p className="text-sm text-red-600 dark:text-red-300 mt-1">{error}</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-red-800 dark:text-red-200">Download Error</p>
+            <p className="text-sm text-red-600 dark:text-red-300 mt-1 break-words">{error}</p>
           </div>
-          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 text-sm shrink-0">
-            Dismiss
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => {
+                setError(null);
+                if (videoInfo?.formats[0]) handleDownload(videoInfo.formats[0]);
+              }}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors"
+            >
+              <RefreshCw className="w-3 h-3" /> Retry
+            </button>
+            <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 text-sm">
+              Dismiss
+            </button>
+          </div>
         </motion.div>
       )}
 
+      {/* Loading State */}
       {isLoading && (
         <motion.div
           key="loading"
@@ -138,6 +230,7 @@ export default function ResultCard() {
         </motion.div>
       )}
 
+      {/* Video Info + Formats */}
       {videoInfo && !isLoading && !error && (
         <motion.div
           key="result"
@@ -167,9 +260,13 @@ export default function ResultCard() {
                   <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-100 line-clamp-2">
                     {videoInfo.title}
                   </h3>
+                  {videoInfo.description && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
+                      {videoInfo.description}
+                    </p>
+                  )}
                   <div className="flex items-center gap-3 mt-2 flex-wrap">
                     <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 font-medium capitalize">
-                      <ExternalLink className="w-3 h-3" />
                       {videoInfo.platform}
                     </span>
                     <span className="text-xs text-gray-500 dark:text-gray-400">
@@ -180,14 +277,23 @@ export default function ResultCard() {
                         {audioFormats.length} audio formats
                       </span>
                     )}
+                    {needsAudioFormats.length > 0 && ffmpegAvailable === false && (
+                      <span className="text-xs text-amber-600 dark:text-amber-400 inline-flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" />
+                        {needsAudioFormats.length} formats lack audio
+                      </span>
+                    )}
                   </div>
+                  {videoInfo.uploader && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {videoInfo.uploader}
+                      {videoInfo.view_count ? ` • ${videoInfo.view_count.toLocaleString()} views` : ""}
+                    </p>
+                  )}
                   {videoInfo.is_playlist && (
                     <div className="mt-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/30">
                       <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
                         Playlist detected - {videoInfo.playlist_count} videos
-                      </p>
-                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                        Each video can be downloaded individually below
                       </p>
                     </div>
                   )}
@@ -199,6 +305,7 @@ export default function ResultCard() {
               </div>
             </div>
 
+            {/* Format Tabs */}
             <div className="border-t border-gray-200/50 dark:border-gray-800/50">
               <div className="flex border-b border-gray-200/50 dark:border-gray-800/50">
                 <button
@@ -225,25 +332,27 @@ export default function ResultCard() {
                 </button>
               </div>
 
-              <div className="p-4 space-y-2 max-h-[400px] overflow-y-auto">
+              <div className="p-4 space-y-2 max-h-[500px] overflow-y-auto">
+                {/* Video formats */}
                 {activeTab === "video" && displayedVideo.map((f) => (
                   <div
                     key={f.format_id}
                     className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
                       <Monitor className="w-4 h-4 text-primary-500 shrink-0" />
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           {f.quality_label || `${f.ext.toUpperCase()} ${f.height || f.resolution || "HD"}`}
                         </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {formatSize(f.filesize || f.filesize_approx || 0)}
-                          {f.fps && f.fps > 30 ? ` - ${f.fps}fps` : ""}
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {f.vcodec !== "none" ? f.vcodec.split(".")[0].toUpperCase() + '/' : ''}{f.acodec !== "none" ? f.acodec.split(".")[0].toUpperCase() : ''}
+                          {f.filesize ? ` • ${formatSize(f.filesize)}` : ''}
+                          {f.fps && f.fps > 0 ? ` • ${f.fps}FPS` : ''}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => handleDownload(f, true)}
                         disabled={downloadingFormat === f.format_id}
@@ -272,8 +381,7 @@ export default function ResultCard() {
                     onClick={() => setShowAllFormats(true)}
                     className="w-full p-2 text-sm text-primary-600 hover:text-primary-500 font-medium flex items-center justify-center gap-1"
                   >
-                    Show all {videoFormats.length} formats
-                    <ChevronDown className="w-4 h-4" />
+                    Show all {videoFormats.length} formats <ChevronDown className="w-4 h-4" />
                   </button>
                 )}
                 {activeTab === "video" && showAllFormats && videoFormats.length > 8 && (
@@ -281,20 +389,18 @@ export default function ResultCard() {
                     onClick={() => setShowAllFormats(false)}
                     className="w-full p-2 text-sm text-primary-600 hover:text-primary-500 font-medium flex items-center justify-center gap-1"
                   >
-                    Show fewer formats
-                    <ChevronUp className="w-4 h-4" />
+                    Show fewer <ChevronUp className="w-4 h-4" />
                   </button>
                 )}
 
+                {/* Audio Tab */}
                 {activeTab === "audio" && (
                   <>
                     <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/30">
                       <Music className="w-4 h-4 text-amber-600 shrink-0" />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                          MP3 Audio Extract
-                        </p>
-                        <div className="flex items-center gap-2 mt-1">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-amber-800 dark:text-amber-200">MP3 Audio Extract</p>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
                           <span className="text-xs text-amber-600 dark:text-amber-400">Quality:</span>
                           {["128", "192", "256", "320"].map((br) => (
                             <button
@@ -310,13 +416,19 @@ export default function ResultCard() {
                             </button>
                           ))}
                         </div>
+                        {ffmpegAvailable === false && (
+                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                            <AlertTriangle className="w-3 h-3 inline mr-1" />
+                            FFmpeg required for MP3 extraction
+                          </p>
+                        )}
                       </div>
                       <button
                         onClick={() => {
                           if (videoFormats[0]) handleDownload(videoFormats[0], true);
                         }}
-                        disabled={downloadingFormat === "mp3"}
-                        className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-sm font-medium rounded-lg transition-all disabled:opacity-50 flex items-center gap-1.5"
+                        disabled={downloadingFormat === "mp3" || ffmpegAvailable === false}
+                        className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-sm font-medium rounded-lg transition-all disabled:opacity-50 flex items-center gap-1.5 shrink-0"
                       >
                         {downloadingFormat === "mp3" ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -332,22 +444,23 @@ export default function ResultCard() {
                         key={f.format_id}
                         className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
                           <Music className="w-4 h-4 text-accent-500 shrink-0" />
-                          <div>
+                          <div className="min-w-0">
                             <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                               {f.quality_label || `Audio ${f.ext.toUpperCase()}`}
                             </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {formatSize(f.filesize || f.filesize_approx || 0)}
-                              {f.abr ? ` - ${f.abr}kbps` : ""}
+                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                              {f.acodec ? f.acodec.split(".")[0].toUpperCase() : 'Audio'}
+                              {f.abr ? ` • ${f.abr}kbps` : ''}
+                              {f.filesize ? ` • ${formatSize(f.filesize)}` : ''}
                             </p>
                           </div>
                         </div>
                         <button
                           onClick={() => handleDownload(f)}
                           disabled={downloadingFormat === f.format_id}
-                          className="px-4 py-1.5 bg-primary-600 hover:bg-primary-500 text-white text-sm font-medium rounded-lg transition-all disabled:opacity-50 flex items-center gap-1.5"
+                          className="px-4 py-1.5 bg-primary-600 hover:bg-primary-500 text-white text-sm font-medium rounded-lg transition-all disabled:opacity-50 flex items-center gap-1.5 shrink-0"
                         >
                           {downloadingFormat === f.format_id ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -364,6 +477,7 @@ export default function ResultCard() {
             </div>
           </div>
 
+          {/* Download Ready */}
           {downloadResult && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -372,26 +486,48 @@ export default function ResultCard() {
             >
               <div className="flex items-start gap-3 mb-4">
                 <CheckCircle className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-green-800 dark:text-green-200">
                     Download ready!
                   </p>
-                  <p className="text-sm text-green-600 dark:text-green-300 mt-1">
+                  <p className="text-sm text-green-600 dark:text-green-300 mt-1 break-words">
                     {downloadResult.title || downloadResult.file_name}.{downloadResult.format}
                     {downloadResult.file_size ? ` (${(downloadResult.file_size / 1024 / 1024).toFixed(1)} MB)` : ""}
                   </p>
+                  <div className="flex items-center gap-3 mt-1 flex-wrap">
+                    {downloadResult.resolution && (
+                      <span className="text-xs text-green-600 dark:text-green-400">{downloadResult.resolution}</span>
+                    )}
+                    {downloadResult.codec && (
+                      <span className="text-xs text-green-600 dark:text-green-400">{downloadResult.codec}</span>
+                    )}
+                    {downloadResult.duration && (
+                      <span className="text-xs text-green-600 dark:text-green-400">{formatDuration(downloadResult.duration)}</span>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
-                <a
-                  href={`${API_BASE}${downloadResult.download_url}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white text-sm font-semibold rounded-xl transition-all shadow-lg shadow-green-500/25"
+                <button
+                  onClick={handleSaveFile}
+                  disabled={savingFile}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white text-sm font-semibold rounded-xl transition-all shadow-lg shadow-green-500/25 disabled:opacity-50"
                 >
-                  <FileDown className="w-4 h-4" />
-                  Save File to Device
-                </a>
+                  {savingFile ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <FileDown className="w-4 h-4" />
+                  )}
+                  {savingFile ? "Saving..." : "Save File to Device"}
+                </button>
+                {downloadResult.task_id && (
+                  <button
+                    onClick={handleCancel}
+                    className="px-4 py-2 text-sm text-red-600 hover:text-red-700 font-medium rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-1.5"
+                  >
+                    <XCircle className="w-4 h-4" /> Cancel
+                  </button>
+                )}
                 <button
                   onClick={() => setDownloadResult(null)}
                   className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
